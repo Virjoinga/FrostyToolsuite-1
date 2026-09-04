@@ -1,13 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+	  
     <Configurations>Developer - Debug;Release - Alpha;Release - Beta;Release - Final</Configurations>
     <Platforms>x64</Platforms>
     <ProjectGuid>{B72B292F-1309-4205-A3FC-3E4EA584CDE8}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <RootNamespace>FrostyModManager</RootNamespace>
     <AssemblyName>FrostyModManager</AssemblyName>
+	<ApplicationIcon>AppIcon.ico</ApplicationIcon>
+	<ApplicationManifest>app.manifest</ApplicationManifest>
+	<ApplicationManifest>Properties\app.manifest</ApplicationManifest>
+	<SignAssembly>false</SignAssembly>
     <TargetFramework>net10.0-windows</TargetFramework>
     <FileAlignment>512</FileAlignment>
     <WarningLevel>4</WarningLevel>
@@ -19,9 +22,7 @@
     <FileVersion>1.0.6.3</FileVersion>
     <UseWPF>True</UseWPF>
   </PropertyGroup>
-  <PropertyGroup>
-    <ApplicationIcon>AppIcon.ico</ApplicationIcon>
-  </PropertyGroup>
+	
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release - Final|x64' ">
     <OutputPath>bin\Release\Final\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
@@ -32,6 +33,7 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <UseVSHostingProcess>true</UseVSHostingProcess>
   </PropertyGroup>
+	
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Developer - Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\Developer\Debug\</OutputPath>
@@ -41,17 +43,7 @@
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
-  <PropertyGroup>
-    <SignAssembly>false</SignAssembly>
-  </PropertyGroup>
-  <PropertyGroup>
-    <AssemblyOriginatorKeyFile>
-    </AssemblyOriginatorKeyFile>
-  </PropertyGroup>
-  <PropertyGroup />
-  <PropertyGroup>
-    <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
-  </PropertyGroup>
+	
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release - Alpha|x64'">
     <OutputPath>bin\Release\Alpha\</OutputPath>
     <DefineConstants>TRACE;FROSTY_ALPHA</DefineConstants>
@@ -61,6 +53,7 @@
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
+	
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release - Beta|x64' ">
     <OutputPath>bin\Release\Beta\</OutputPath>
     <DefineConstants>TRACE;FROSTY_BETA</DefineConstants>
@@ -95,9 +88,11 @@
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
   </ItemGroup>
+	
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
+	
   <ItemGroup>
     <ProjectReference Include="..\FrostyControls\FrostyControls.csproj">
       <Project>{51d3305b-48d0-4d4c-9d64-727185420eac}</Project>
@@ -117,56 +112,10 @@
       <Name>FrostySdk</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup>
-    <Resource Include="AppIcon.ico" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="Images\AddMod.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="Images\Minus.png" />
-    <Resource Include="Images\Plus.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="Images\Play.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="Images\Remove.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="Images\Down.png" />
-    <Resource Include="Images\Up.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="Images\Warning.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="Images\DefaultModIcon.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="Images\RemoveMod.png" />
-  </ItemGroup>
+	
   <ItemGroup>
     <Resource Include="Credits.txt" />
-    <Resource Include="Images\Frosty.png" />
-    <Resource Include="Images\ModImportError.png" />
-    <Resource Include="Images\ModImportWarning.png" />
-    <Resource Include="Images\ModifyAction.png" />
-    <Resource Include="Images\AddAction.png" />
-    <Resource Include="Images\Chunk.png" />
-    <Resource Include="Images\Ebx.png" />
-    <Resource Include="Images\Res.png" />
-    <Resource Include="Images\Cross.png" />
-    <Resource Include="Images\Tick.png" />
-    <Resource Include="Images\Legacy.png" />
-    <Resource Include="Images\Merge.png" />
-    <Resource Include="Images\PrimaryActionModify.png" />
-    <Resource Include="Images\PrimaryActionReplace.png" />
-    <Resource Include="Images\SecondaryActionAdd.png" />
-    <Resource Include="Images\PrimaryActionAdd.png" />
-    <Resource Include="Images\PrimaryActionMerge.png" />
-    <Resource Include="Images\Open.png" />
-    <Resource Include="Images\SaveAs.png" />
+    <Resource Include="Images\**\*" />
     <Content Include="ThirdParty\LZMA.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -174,6 +123,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+	
   <ItemGroup>
     <COMReference Include="IWshRuntimeLibrary">
       <Guid>{F935DC20-1CF0-11D0-ADB9-00C04FD58A0B}</Guid>
@@ -185,12 +135,5 @@
       <EmbedInteropTypes>True</EmbedInteropTypes>
     </COMReference>
   </ItemGroup>
-  <PropertyGroup>
-    <PostBuildEvent>
-    </PostBuildEvent>
-  </PropertyGroup>
-  <PropertyGroup>
-    <PreBuildEvent>
-    </PreBuildEvent>
-  </PropertyGroup>
+	
 </Project>
