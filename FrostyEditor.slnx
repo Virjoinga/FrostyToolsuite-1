@@ -71,6 +71,10 @@
       <BuildType Solution="Release|*" Project="Release - Alpha" />
       <Platform Project="x64" />
     </Project>
+    <Project Path="Plugins/FrostyMathEntityExtender/MathExtender.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
     <Project Path="Plugins/FrostyMovieTexture2AssetEditor/MovieTexture2AssetEditorPlugin.csproj">
       <BuildType Solution="Release|*" Project="Release - Alpha" />
       <Platform Project="x64" />
