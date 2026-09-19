@@ -44,14 +44,14 @@
   </ItemDefinitionGroup>
     
   <ItemGroup>      
-    <PackageReference Include="NAudio" Version="3.1.0" />
-    <PackageReference Include="NAudio.Asio" Version="3.1.0" />
-    <PackageReference Include="NAudio.Core" Version="3.1.0" />
-    <PackageReference Include="NAudio.Midi" Version="3.1.0" />
-    <PackageReference Include="NAudio.Wasapi" Version="3.1.0" />
+    <PackageReference Include="NAudio" Version="3.0.1" />
+    <PackageReference Include="NAudio.Asio" Version="3.0.1" />
+    <PackageReference Include="NAudio.Core" Version="3.0.1" />
+    <PackageReference Include="NAudio.Midi" Version="3.0.1" />
+    <PackageReference Include="NAudio.Wasapi" Version="3.0.1" />
     <PackageReference Include="NAudio.WaveFormRenderer" Version="2.0.0" />
-    <PackageReference Include="NAudio.WinForms" Version="3.1.0" />
-    <PackageReference Include="NAudio.WinMM" Version="3.1.0" />
+    <PackageReference Include="NAudio.WinForms" Version="3.0.1" />
+    <PackageReference Include="NAudio.WinMM" Version="3.0.1" />
     <PackageReference Include="SharpGen.Runtime" Version="2.4.2-beta" />
     <PackageReference Include="SharpGen.Runtime.COM" Version="2.4.2-beta" />
     <PackageReference Include="Vortice.DirectX" Version="3.8.3" />
@@ -67,14 +67,14 @@
     
     <Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(SolutionDir)FrostyEditor\$(OutDir)Plugins\" />
       
-    <Copy SourceFiles="$(PkgNAudio_Core)\lib\net9.0\NAudio.Core.dll" DestinationFolder="@(ThirdPartyFolder)" />
-    <Copy SourceFiles="$(PkgNAudio_WinMM)\lib\net9.0-windows7.0\NAudio.WinMM.dll" DestinationFolder="@(ThirdPartyFolder)" />
-    <Copy SourceFiles="$(PkgNAudio_WinForms)\lib\net9.0-windows7.0\NAudio.WinForms.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio_Core)\lib\netstandard2.0\NAudio.Core.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio_WinMM)\lib\netstandard2.0\NAudio.WinMM.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio_WinForms)\lib\netcoreapp3.1\NAudio.WinForms.dll" DestinationFolder="@(ThirdPartyFolder)" />
     <Copy SourceFiles="$(PkgNAudio_WaveFormRenderer)\lib\netstandard2.0\NAudio.WaveFormRenderer.dll" DestinationFolder="@(ThirdPartyFolder)" />
-    <Copy SourceFiles="$(PkgNAudio_Wasapi)\lib\net9.0\NAudio.Wasapi.dll" DestinationFolder="@(ThirdPartyFolder)" />
-    <Copy SourceFiles="$(PkgNAudio_Midi)\lib\net9.0\NAudio.Midi.dll" DestinationFolder="@(ThirdPartyFolder)" />
-    <Copy SourceFiles="$(PkgNAudio_Asio)\lib\net9.0-windows7.0\NAudio.Asio.dll" DestinationFolder="@(ThirdPartyFolder)" />
-    <Copy SourceFiles="$(PkgNAudio)\lib\net9.0\NAudio.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio_Wasapi)\lib\netstandard2.0\NAudio.Wasapi.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio_Midi)\lib\netstandard2.0\NAudio.Midi.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio_Asio)\lib\netstandard2.0\NAudio.Asio.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio)\lib\net6.0-windows7.0\NAudio.dll" DestinationFolder="@(ThirdPartyFolder)" />
       
     <Copy SourceFiles="$(PkgSharpGen_Runtime)\lib\net9.0\SharpGen.Runtime.dll" DestinationFolder="@(ThirdPartyFolder)" />
     <Copy SourceFiles="$(PkgSharpGen_Runtime_COM)\lib\net9.0\SharpGen.Runtime.COM.dll" DestinationFolder="@(ThirdPartyFolder)" />
