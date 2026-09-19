@@ -73,9 +73,9 @@
   <ItemGroup>
     <PackageReference Include="SharpGen.Runtime" Version="2.4.2-beta" />
     <PackageReference Include="SharpGen.Runtime.COM" Version="2.4.2-beta" />
-    <PackageReference Include="Vortice.DirectX" Version="3.8.3" />
-    <PackageReference Include="Vortice.DXGI" ExcludeAssets="runtime" Version="3.8.3" />
-    <PackageReference Include="Vortice.Mathematics" Version="2.1.1" />
+    <PackageReference Include="Vortice.DirectX" Version="3.8.2" />
+    <PackageReference Include="Vortice.DXGI" ExcludeAssets="runtime" Version="3.8.2" />
+    <PackageReference Include="Vortice.Mathematics" Version="2.1.0" />
   </ItemGroup>
     
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">

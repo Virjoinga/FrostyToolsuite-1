@@ -75,18 +75,18 @@
   </ItemDefinitionGroup>
     
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="5.9.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="5.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageReference Include="Newtonsoft.Json" ExcludeAssets="runtime" Version="13.0.4" />
     <PackageReference Include="SharpGen.Runtime" Version="2.4.2-beta" />
     <PackageReference Include="SharpGen.Runtime.COM" Version="2.4.2-beta" />
-    <PackageReference Include="Vortice.D3DCompiler" ExcludeAssets="runtime" Version="3.8.3" />
-    <PackageReference Include="Vortice.Direct2D1" ExcludeAssets="runtime" Version="3.8.3" />
-    <PackageReference Include="Vortice.Direct3D11" ExcludeAssets="runtime" Version="3.8.3" />
-    <PackageReference Include="Vortice.DirectX" Version="3.8.3" />
-    <PackageReference Include="Vortice.DXGI" ExcludeAssets="runtime" Version="3.8.3" />
-    <PackageReference Include="Vortice.Mathematics" ExcludeAssets="runtime" Version="2.1.1" />
-    <PackageReference Include="Vortice.XAudio2" ExcludeAssets="runtime" Version="3.8.3" />
+    <PackageReference Include="Vortice.D3DCompiler" ExcludeAssets="runtime" Version="3.8.2" />
+    <PackageReference Include="Vortice.Direct2D1" ExcludeAssets="runtime" Version="3.8.2" />
+    <PackageReference Include="Vortice.Direct3D11" ExcludeAssets="runtime" Version="3.8.2" />
+    <PackageReference Include="Vortice.DirectX" Version="3.8.2" />
+    <PackageReference Include="Vortice.DXGI" ExcludeAssets="runtime" Version="3.8.2" />
+    <PackageReference Include="Vortice.Mathematics" ExcludeAssets="runtime" Version="2.1.0" />
+    <PackageReference Include="Vortice.XAudio2" ExcludeAssets="runtime" Version="3.8.2" />
     <PackageReference Include="WindowsAPICodePack" Version="8.0.15.2" />
   </ItemGroup>
   
