@@ -362,21 +362,21 @@ namespace Frosty.Core
             }
 
             private delegate void SetActiveWindowFuncPtr(IntPtr device, IntPtr wndHandle);
-            public void SetActiveWindow(SharpDX.Direct3D11.Device device, IntPtr hWnd)
+            public void SetActiveWindow(Vortice.Direct3D11.ID3D11Device device, IntPtr hWnd)
             {
                 SetActiveWindowFuncPtr func = Marshal.GetDelegateForFunctionPointer<SetActiveWindowFuncPtr>(Marshal.ReadIntPtr(ptr, 0x90));
                 func((device != null) ? device.NativePointer : IntPtr.Zero, hWnd);
             }
 
             private delegate void StartFrameCaptureFuncPtr(IntPtr device, IntPtr handle);
-            public void StartFrameCapture(SharpDX.Direct3D11.Device device, IntPtr handle)
+            public void StartFrameCapture(Vortice.Direct3D11.ID3D11Device device, IntPtr handle)
             {
                 StartFrameCaptureFuncPtr func = Marshal.GetDelegateForFunctionPointer<StartFrameCaptureFuncPtr>(Marshal.ReadIntPtr(ptr, 0x98));
                 func((device != null) ? device.NativePointer : IntPtr.Zero, handle);
             }
 
             private delegate void EndFrameCaptureFuncPtr(IntPtr device, IntPtr handle);
-            public void EndFrameCapture(SharpDX.Direct3D11.Device device, IntPtr handle)
+            public void EndFrameCapture(Vortice.Direct3D11.ID3D11Device device, IntPtr handle)
             {
                 EndFrameCaptureFuncPtr func = Marshal.GetDelegateForFunctionPointer<EndFrameCaptureFuncPtr>(Marshal.ReadIntPtr(ptr, 0xa8));
                 func((device != null) ? device.NativePointer : IntPtr.Zero, handle);

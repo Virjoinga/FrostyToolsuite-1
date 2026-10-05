@@ -1,17 +1,17 @@
-﻿using SharpDX.Direct3D11;
+﻿using Vortice.Direct3D11;
 
 namespace Frosty.Core.Viewport
 {
     public interface IViewport
     {
-        SharpDX.DXGI.SwapChain SwapChain { get; }
-        Device Device { get; }
-        DeviceContext Context { get; }
-        Texture2D ColorBuffer { get; }
-        RenderTargetView ColorBufferRTV { get; }
-        Texture2D DepthBuffer { get; }
-        DepthStencilView DepthBufferDSV { get; }
-        ShaderResourceView DepthBufferSRV { get; }
+        Vortice.DXGI.IDXGISwapChain SwapChain { get; }
+        ID3D11Device Device { get; }
+        ID3D11DeviceContext Context { get; }
+        ID3D11Texture2D ColorBuffer { get; }
+        ID3D11RenderTargetView ColorBufferRTV { get; }
+        ID3D11Texture2D DepthBuffer { get; }
+        ID3D11DepthStencilView DepthBufferDSV { get; }
+        ID3D11ShaderResourceView DepthBufferSRV { get; }
 
         int ViewportWidth { get; }
         int ViewportHeight { get; }

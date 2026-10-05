@@ -157,6 +157,12 @@ namespace AssetBankPlugin.Ant
                 r.ReadDataHeader(section.Endianness, out uint base_hash, out uint base_type, out uint base_offset);
 
                 var baseValues = section.ReadValues(r, classes, section.DataOffset + base_offset + Convert.ToUInt32(baseVal), base_type);
+
+                string baseTypeName = classes[base_type].Name;
+                AntAsset baseAsset = CreateAndRegisterAsset(baseTypeName, baseValues, bank);
+
+                values["__base"] = baseAsset;
+
                 foreach (var value in baseValues)
                 {
                     if (!values.ContainsKey(value.Key)) values.Add(value.Key, value.Value);
@@ -187,13 +193,19 @@ namespace AssetBankPlugin.Ant
             if (!s_activatorCache.TryGetValue(typeName, out Func<AntAsset> activator))
             {
                 Type assetType = Type.GetType("AssetBankPlugin.Ant." + typeName);
+
+                if (assetType == null && (typeName.EndsWith("AnimationAsset") || typeName.EndsWith("AnimAsset")))
+                {
+                    assetType = typeof(AnimationAsset);
+                }
+
                 if (assetType != null)
                 {
                     var newExp = Expression.New(assetType);
                     var lambda = Expression.Lambda<Func<AntAsset>>(newExp);
                     activator = lambda.Compile();
                 }
-                s_activatorCache[typeName] = activator;         
+                s_activatorCache[typeName] = activator;
             }
 
             if (activator != null)
@@ -211,6 +223,7 @@ namespace AssetBankPlugin.Ant
                 catch { }
             }
 
+            // Generic fallback for non animation data assets
             asset = new GenericAntAsset();
             asset.AssetType = typeName;
             asset.Bank = bank;

@@ -1,11 +1,11 @@
 ﻿using Frosty.Core.Viewport;
 using System;
 using System.Windows.Controls;
-using D3D11=SharpDX.Direct3D11;
-using SharpDX.DXGI;
+using D3D11 = Vortice.Direct3D11;
+using Vortice.DXGI;
 using System.ComponentModel;
 using System.Windows;
-using SharpDX.Direct3D;
+using Vortice.Direct3D;
 using System.Windows.Media;
 using System.Diagnostics;
 using System.Windows.Input;
@@ -22,20 +22,18 @@ namespace Frosty.Core.Controls
         public float LastFrameTime => lastFrameTime;
         public float TotalTime => totalTime;
 
-        public SwapChain SwapChain => null;
-        public D3D11.Device Device => device ?? (device = FrostyDeviceManager.Current.GetDevice());
-        public D3D11.DeviceContext Context => Device.ImmediateContext;
-        public D3D11.Texture2D ColorBuffer => backBuffer;
-        public D3D11.RenderTargetView ColorBufferRTV => backBufferRTV;
-        public D3D11.Texture2D DepthBuffer => depthBuffer;
-        public D3D11.DepthStencilView DepthBufferDSV => depthBufferDSV;
-        public D3D11.ShaderResourceView DepthBufferSRV => depthBufferSRV;
+        public IDXGISwapChain SwapChain => null;
+        public D3D11.ID3D11Device Device => device ?? (device = FrostyDeviceManager.Current.GetDevice());
+        public D3D11.ID3D11DeviceContext Context => Device.ImmediateContext;
+        public D3D11.ID3D11Texture2D ColorBuffer => backBuffer;
+        public D3D11.ID3D11RenderTargetView ColorBufferRTV => backBufferRTV;
+        public D3D11.ID3D11Texture2D DepthBuffer => depthBuffer;
+        public D3D11.ID3D11DepthStencilView DepthBufferDSV => depthBufferDSV;
+        public D3D11.ID3D11ShaderResourceView DepthBufferSRV => depthBufferSRV;
 
-        public Screen Screen
-        {
+        public Screen Screen {
             get => screen;
-            set
-            {
+            set {
                 screen?.DisposeBuffers();
                 screen?.Closed();
                 screen?.SetViewport(null);
@@ -49,13 +47,13 @@ namespace Frosty.Core.Controls
             }
         }
 
-        private D3D11.Device device;
-        private D3D11.Texture2D backBuffer;
-        private D3D11.Texture2D backBufferCopy;
-        private D3D11.RenderTargetView backBufferRTV;
-        private D3D11.Texture2D depthBuffer;
-        private D3D11.DepthStencilView depthBufferDSV;
-        private D3D11.ShaderResourceView depthBufferSRV;
+        private D3D11.ID3D11Device device;
+        private D3D11.ID3D11Texture2D backBuffer;
+        private D3D11.ID3D11Texture2D backBufferCopy;
+        private D3D11.ID3D11RenderTargetView backBufferRTV;
+        private D3D11.ID3D11Texture2D depthBuffer;
+        private D3D11.ID3D11DepthStencilView depthBufferDSV;
+        private D3D11.ID3D11ShaderResourceView depthBufferSRV;
 
         private Screen screen;
         private FrostyRenderImage imageSource;
@@ -72,6 +70,7 @@ namespace Frosty.Core.Controls
         private bool bFirstLoad = true;
         private bool bPaused = false;
 
+        private CancellationTokenSource cancellationTokenSource;
         private Thread renderThread;
 
         static FrostyViewport()
@@ -98,7 +97,7 @@ namespace Frosty.Core.Controls
 
             KeyDown += FrostyViewport_KeyDown;
             KeyUp += FrostyViewport_KeyUp;
-            TextInput += FrostyViewport_TextInput;            
+            TextInput += FrostyViewport_TextInput;
         }
 
         public void SetPaused(bool newPause)
@@ -112,8 +111,6 @@ namespace Frosty.Core.Controls
                 return;
 
             StopRenderThread();
-
-            DisposeBuffers();
             bDisposed = true;
 
             // dipose of UI
@@ -125,8 +122,10 @@ namespace Frosty.Core.Controls
                 FrostyDeviceManager.Current.CurrentViewport = null;
         }
 
-        private void ThreadCallback()
+        private void ThreadCallback(object obj)
         {
+            var token = (CancellationToken)(obj);
+
             try
             {
                 // create any viewport dependent buffers
@@ -142,6 +141,8 @@ namespace Frosty.Core.Controls
 
                 while (!bShutdownRenderThread)
                 {
+                    token.ThrowIfCancellationRequested();
+
                     double frameTime = stopwatch.Elapsed.TotalSeconds;
                     lastFrameTime = (float)frameTime;
                     totalTime += lastFrameTime;
@@ -165,7 +166,7 @@ namespace Frosty.Core.Controls
                         Thread.Sleep((int)((FixedFrameTime - elapsedTime) * 1000));
                 }
             }
-            catch (ThreadAbortException)
+            catch (OperationCanceledException)
             {
                 // dispose of any buffers that are dependent on viewport
                 DisposeSizeDependentBuffers();
@@ -184,7 +185,7 @@ namespace Frosty.Core.Controls
 
             screen?.Render();
             Device.ImmediateContext.Flush();
-            Device.ImmediateContext.ResolveSubresource(backBuffer, 0, backBufferCopy, 0, Format.B8G8R8A8_UNorm);
+            Device.ImmediateContext.ResolveSubresource(backBufferCopy, 0, backBuffer, 0, Format.B8G8R8A8_UNorm);
 
             Dispatcher.Invoke(() =>
             {
@@ -293,7 +294,7 @@ namespace Frosty.Core.Controls
 
             // stop the render thread
             StopRenderThread();
-            
+
             // dipose of UI
             imageSource.Dispose();
             Source = null;
@@ -306,16 +307,22 @@ namespace Frosty.Core.Controls
 
         private void StopRenderThread()
         {
-            renderThread.Abort();
-            while (renderThread.IsAlive)
-                Thread.Sleep(1);
+            if (cancellationTokenSource is null)
+                return;
+
+            cancellationTokenSource.Cancel();
+            cancellationTokenSource.Dispose();
+            cancellationTokenSource = null;
         }
 
         private void StartRenderThread()
         {
+            /* `CancellationTokenSource`s aren't reusable, so instantiate a new one. */
+            cancellationTokenSource = new CancellationTokenSource();
+
             bShutdownRenderThread = false;
-            renderThread = new Thread(new ThreadStart(ThreadCallback));
-            renderThread.Start();
+            renderThread = new Thread(new ParameterizedThreadStart(ThreadCallback));
+            renderThread.Start(cancellationTokenSource.Token);
         }
 
         private void ResizeBuffers()
@@ -331,71 +338,76 @@ namespace Frosty.Core.Controls
             viewportWidth = (ActualWidth < 1.0) ? 1 : (int)ActualWidth;
             viewportHeight = (ActualHeight < 1.0) ? 1 : (int)ActualHeight;
 
-            backBuffer = new D3D11.Texture2D(Device, new D3D11.Texture2DDescription
+            backBuffer = Device.CreateTexture2D(new D3D11.Texture2DDescription
             {
                 BindFlags = D3D11.BindFlags.RenderTarget | D3D11.BindFlags.ShaderResource,
                 Format = Format.B8G8R8A8_UNorm,
-                Width = viewportWidth,
-                Height = viewportHeight,
+                Width = (uint)(viewportWidth),
+                Height = (uint)(viewportHeight),
                 MipLevels = 1,
                 SampleDescription = new SampleDescription(1, 0),
                 Usage = D3D11.ResourceUsage.Default,
-                OptionFlags = D3D11.ResourceOptionFlags.None,
-                CpuAccessFlags = D3D11.CpuAccessFlags.None,
+                MiscFlags = D3D11.ResourceOptionFlags.None,
+                CPUAccessFlags = D3D11.CpuAccessFlags.None,
                 ArraySize = 1
-            }) {DebugName = "BackBuffer"};
+            });
+            backBuffer.DebugName = "BackBuffer";
 
-            backBufferCopy = new D3D11.Texture2D(Device, new D3D11.Texture2DDescription()
+            backBufferCopy = Device.CreateTexture2D(new D3D11.Texture2DDescription()
             {
                 BindFlags = D3D11.BindFlags.RenderTarget | D3D11.BindFlags.ShaderResource,
                 Format = Format.B8G8R8A8_UNorm,
-                Width = viewportWidth,
-                Height = viewportHeight,
+                Width = (uint)(viewportWidth),
+                Height = (uint)(viewportHeight),
                 MipLevels = 1,
                 SampleDescription = new SampleDescription(1, 0),
                 Usage = D3D11.ResourceUsage.Default,
-                OptionFlags = D3D11.ResourceOptionFlags.Shared,
-                CpuAccessFlags = D3D11.CpuAccessFlags.None,
+                MiscFlags = D3D11.ResourceOptionFlags.Shared,
+                CPUAccessFlags = D3D11.CpuAccessFlags.None,
                 ArraySize = 1
             });
 
-            backBufferRTV = new D3D11.RenderTargetView(Device, backBuffer) {DebugName = "BackBuffer (RTV)"};
+            backBufferRTV = Device.CreateRenderTargetView(backBuffer);
+            backBufferRTV.DebugName = "BackBuffer (RTV)";
 
-            depthBuffer = new D3D11.Texture2D(Device, new D3D11.Texture2DDescription
+            depthBuffer = Device.CreateTexture2D(new D3D11.Texture2DDescription
             {
                 ArraySize = 1,
                 BindFlags = D3D11.BindFlags.DepthStencil | D3D11.BindFlags.ShaderResource,
-                CpuAccessFlags = D3D11.CpuAccessFlags.None,
+                CPUAccessFlags = D3D11.CpuAccessFlags.None,
                 Format = Format.R24G8_Typeless,
-                Width = viewportWidth,
-                Height = viewportHeight,
+                Width = (uint)(viewportWidth),
+                Height = (uint)(viewportHeight),
                 MipLevels = 1,
-                OptionFlags = D3D11.ResourceOptionFlags.None,
+                MiscFlags = D3D11.ResourceOptionFlags.None,
                 SampleDescription = new SampleDescription(1, 0),
                 Usage = D3D11.ResourceUsage.Default
-            }) {DebugName = "DepthBuffer"};
+            });
+            depthBuffer.DebugName = "DepthBuffer";
 
-            depthBufferDSV = new D3D11.DepthStencilView(Device, depthBuffer, new D3D11.DepthStencilViewDescription()
+            depthBufferDSV = Device.CreateDepthStencilView(depthBuffer, new D3D11.DepthStencilViewDescription()
             {
-                Dimension = D3D11.DepthStencilViewDimension.Texture2D,
+                ViewDimension = D3D11.DepthStencilViewDimension.Texture2D,
                 Flags = D3D11.DepthStencilViewFlags.None,
                 Format = Format.D24_UNorm_S8_UInt,
-                Texture2D = new D3D11.DepthStencilViewDescription.Texture2DResource {MipSlice = 0}
-            }) {DebugName = "DepthBuffer (DSV)"};
+                Texture2D = new D3D11.Texture2DDepthStencilView { MipSlice = 0 }
+            });
+            depthBufferDSV.DebugName = "DepthBuffer (DSV)";
 
-            depthBufferSRV = new D3D11.ShaderResourceView(Device, depthBuffer, new D3D11.ShaderResourceViewDescription()
+            depthBufferSRV = Device.CreateShaderResourceView(depthBuffer, new D3D11.ShaderResourceViewDescription()
             {
-                Dimension = ShaderResourceViewDimension.Texture2D,
+                ViewDimension = ShaderResourceViewDimension.Texture2D,
                 Format = Format.R24_UNorm_X8_Typeless,
-                Texture2D = new D3D11.ShaderResourceViewDescription.Texture2DResource()
+                Texture2D = new D3D11.Texture2DShaderResourceView()
                 {
                     MipLevels = 1,
                     MostDetailedMip = 0
                 }
-            }) {DebugName = "DepthBuffer (SRV)"};
+            });
+            depthBufferDSV.DebugName = "DepthBuffer (SRV)";
 
-            Device.ImmediateContext.OutputMerger.SetRenderTargets(depthBufferDSV, backBufferRTV);
-            Device.ImmediateContext.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, viewportWidth, viewportHeight));
+            Device.ImmediateContext.OMSetRenderTargets(backBufferRTV, depthBufferDSV);
+            Device.ImmediateContext.RSSetViewport(0, 0, viewportWidth, viewportHeight);
 
             screen?.CreateSizeDependentBuffers();
 

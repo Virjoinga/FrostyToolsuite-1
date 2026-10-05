@@ -1,12 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Configurations>Developer - Debug;Release - Alpha;Release - Beta;Release - Final</Configurations>
     <Platforms>x64</Platforms>
-    <TargetFrameworks>net48</TargetFrameworks>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <AssemblyTitle>MeshSetPlugin</AssemblyTitle>
     <Product>MeshSetPlugin</Product>
     <Copyright>Copyright ©  2020</Copyright>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <UseWPF>true</UseWPF>
     <OutputType>Library</OutputType>
@@ -43,46 +44,56 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   
+  <ItemDefinitionGroup>
+    <!-- Enable `GeneratePathProperty` for all `PackageReference`s. -->
+    <PackageReference GeneratePathProperty="true" />
+  </ItemDefinitionGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="SharpGen.Runtime" Version="2.4.2-beta" />
+    <PackageReference Include="SharpGen.Runtime.COM" Version="2.4.2-beta" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.2" />
+    <PackageReference Include="Vortice.DirectX" Version="3.8.2" />
+    <PackageReference Include="Vortice.DXGI" Version="3.8.2" />
+    <PackageReference Include="Vortice.Mathematics" Version="2.1.0" />
+  </ItemGroup>
+    
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy /Y &quot;$(TargetPath)&quot; &quot;$(SolutionDir)$(OutDir)Plugins\&quot;" />
-    <Exec Command="xcopy /Y &quot;$(TargetPath)&quot; &quot;$(SolutionDir)..\FrostyModManager\$(OutDir)Plugins\&quot;" />
+    <ItemGroup>
+      <PluginFiles Include="$(TargetDir)$(ProjectName).*" />
+      <EditorThirdPartyFolder Include="$(SolutionDir)FrostyEditor\$(OutDir)ThirdParty\" />
+      <ModManagerThirdPartyFolder Include="$(SolutionDir)FrostyModManager\$(OutDir)ThirdParty\" />
+    </ItemGroup>
+    
+    <!-- Editor -->
+    <Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(SolutionDir)FrostyEditor\$(OutDir)Plugins\" />
+      
+    <Copy SourceFiles="$(PkgSharpGen_Runtime)\lib\net9.0\SharpGen.Runtime.dll" DestinationFolder="@(EditorThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgSharpGen_Runtime_COM)\lib\net9.0\SharpGen.Runtime.COM.dll" DestinationFolder="@(EditorThirdPartyFolder)" />
+      
+    <Copy SourceFiles="$(PkgVortice_Direct3D11)\lib\net10.0\Vortice.Direct3D11.dll" DestinationFolder="@(EditorThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgVortice_DirectX)\lib\net10.0\Vortice.DirectX.dll" DestinationFolder="@(EditorThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgVortice_DXGI)\lib\net10.0\Vortice.DXGI.dll" DestinationFolder="@(EditorThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgVortice_Mathematics)\lib\net10.0\Vortice.Mathematics.dll" DestinationFolder="@(EditorThirdPartyFolder)" />
+      
+    <!-- Mod Manager -->
+    <Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(SolutionDir)FrostyModManager\$(OutDir)Plugins\" />
+      
+    <Copy SourceFiles="$(PkgSharpGen_Runtime)\lib\net9.0\SharpGen.Runtime.dll" DestinationFolder="@(ModManagerThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgSharpGen_Runtime_COM)\lib\net9.0\SharpGen.Runtime.COM.dll" DestinationFolder="@(ModManagerThirdPartyFolder)" />
+      
+    <Copy SourceFiles="$(PkgVortice_Direct3D11)\lib\net10.0\Vortice.Direct3D11.dll" DestinationFolder="@(ModManagerThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgVortice_DirectX)\lib\net10.0\Vortice.DirectX.dll" DestinationFolder="@(ModManagerThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgVortice_DXGI)\lib\net10.0\Vortice.DXGI.dll" DestinationFolder="@(ModManagerThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgVortice_Mathematics)\lib\net10.0\Vortice.Mathematics.dll" DestinationFolder="@(ModManagerThirdPartyFolder)" />
   </Target>
   
   <ItemGroup>
-    <Reference Include="SharpDX">
-      <HintPath>..\..\FrostyEditor\ThirdParty\SharpDX.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="SharpDX.Direct3D11">
-      <HintPath>..\..\FrostyEditor\ThirdParty\SharpDX.Direct3D11.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="SharpDX.DXGI">
-      <HintPath>..\..\FrostyEditor\ThirdParty\SharpDX.DXGI.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="SharpDX.Mathematics">
-      <HintPath>..\..\FrostyEditor\ThirdParty\SharpDX.Mathematics.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-  </ItemGroup>
-  
-  <ItemGroup>
-    <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj">
-      <Private>false</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\..\FrostyHash\FrostyHash.vcxproj">
-      <Private>false</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\..\FrostyModSupport\FrostyModSupport.csproj">
-      <Private>false</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj">
-      <Private>false</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj">
-      <Private>false</Private>
-    </ProjectReference>
+    <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj" />
+    <ProjectReference Include="..\..\FrostyHash\FrostyHash.csproj" />
+    <ProjectReference Include="..\..\FrostyModSupport\FrostyModSupport.csproj" />
+    <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj" />
+    <ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj" />
   </ItemGroup>
   
   <ItemGroup>

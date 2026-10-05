@@ -1,10 +1,12 @@
-﻿using FrostySdk.Managers;
+﻿using Frosty.Core.Windows;
+using FrostySdk.Managers;
+using FrostySdk.Managers.Entries;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
-using Frosty.Core.Windows;
-using FrostySdk.Managers.Entries;
+using System.Windows.Media;
 
 namespace Frosty.Core.Converters
 {
@@ -35,35 +37,29 @@ namespace Frosty.Core.Converters
 
     public class AssetEntryToBitmapSourceConverter : IValueConverter
     {
+        private static readonly Dictionary<string, object> IconCache = [];
+        private static readonly StringToBitmapSourceConverter CoreConverter = new();
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
+            string sourceName;
             if (value is AssetEntry entry)
-            {
-                string sourceName = entry.Type;
+                sourceName = entry.Type;
+            else if (value is AssetInstanceInfo info)
+                sourceName = info.Type;
+            else
+                sourceName = value as string;
 
-                var definition = App.PluginManager.GetAssetDefinition(sourceName);
-                return definition != null ? definition.GetIcon(entry) : new StringToBitmapSourceConverter().Convert(sourceName, targetType, parameter, culture);
-            }
-            
-            if (value is AssetInstanceInfo instance)
-            {
-                return new StringToBitmapSourceConverter().Convert(instance.Type, targetType, parameter, culture);
-            }
+            if (IconCache.TryGetValue(sourceName, out var icon))
+                return icon;
 
-            AssetInstanceInfo info = value as AssetInstanceInfo;
-            if (info != null)
-            {
-                string sourceName = info.Type;
+            var definition = App.PluginManager.GetAssetDefinition(sourceName);
+            object assetIcon = definition != null
+                ? definition.GetIcon()
+                : CoreConverter.Convert(sourceName, targetType, parameter, culture);
 
-                var definition = App.PluginManager.GetAssetDefinition(sourceName);
-                if (definition != null)
-                {
-                    return definition.GetIcon();
-                }
-                return new StringToBitmapSourceConverter().Convert(sourceName, targetType, parameter, culture);
-            }
-
-            return new StringToBitmapSourceConverter().Convert(value as string, targetType, parameter, culture);
+            IconCache.Add(sourceName, assetIcon);
+            return assetIcon;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

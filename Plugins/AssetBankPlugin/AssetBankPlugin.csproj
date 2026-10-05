@@ -1,12 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Configurations>Developer - Debug;Release - Alpha;Release - Beta;Release - Final</Configurations>
     <Platforms>x64</Platforms>
-    <TargetFrameworks>net481</TargetFrameworks>
+    <TargetFrameworks>net10.0-windows</TargetFrameworks>
     <AssemblyTitle>BlankPlugin</AssemblyTitle>
     <Product>BlankPlugin</Product>
     <Copyright>Copyright ©  2020</Copyright>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+	<AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <UseWPF>true</UseWPF>
     <OutputType>Library</OutputType>
@@ -43,37 +44,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
-    <Reference Include="System.Xaml" />
-    <Reference Include="WindowsBase" />
-  </ItemGroup>
-
-
-	<ItemGroup>
-		<Reference Include="SharpDX">
-			<HintPath>..\..\FrostyEditor\ThirdParty\SharpDX.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="SharpDX.Direct3D11">
-			<HintPath>..\..\FrostyEditor\ThirdParty\SharpDX.Direct3D11.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="SharpDX.DXGI">
-			<HintPath>..\..\FrostyEditor\ThirdParty\SharpDX.DXGI.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="SharpDX.Mathematics">
-			<HintPath>..\..\FrostyEditor\ThirdParty\SharpDX.Mathematics.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-	</ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj">
-      <Private>false</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\..\FrostyHash\FrostyHash.vcxproj">
       <Private>false</Private>
     </ProjectReference>
     <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj">
@@ -97,13 +68,21 @@
   <ItemGroup>
     <Resource Include="Images\AntStateAssetFileType.png" />
     <Resource Include="Images\Eye.png" />
-    <Resource Include="Images\Instances.png">
+    <Resource Include="Images\Instances.png" />
+	<Resource Include="Images\RigidMeshFileType.png" />
+	<Resource Include="Images\SkinnedMeshFileType.png">
       <CopyToOutputDirectory></CopyToOutputDirectory>
     </Resource>
   </ItemGroup>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy /Y &quot;$(TargetPath)&quot; &quot;$(SolutionDir)$(OutDir)Plugins\&quot;" />
-  </Target>
+	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+		<ItemGroup>
+			<PluginFiles Include="$(TargetDir)$(ProjectName).*" />
+		</ItemGroup>
+		<Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(SolutionDir)FrostyEditor\$(OutDir)Plugins\" />
 
+		<Copy SourceFiles="$(ProjectDir)AssImp\assimp.dll;$(ProjectDir)AssImp\AssimpNet.dll"
+			  DestinationFolder="$(SolutionDir)FrostyEditor\$(OutDir)Plugins\" />
+	</Target>
+	
 </Project>

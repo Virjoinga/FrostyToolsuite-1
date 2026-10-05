@@ -1,17 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
-using SharpDX;
-using SharpDX.Direct3D11;
-using Frosty.Core.Viewport;
+﻿using Frosty.Core.Viewport;
+using Frosty.Hash;
 using FrostySdk;
-using System.IO;
-using FrostySdk.Managers;
 using FrostySdk.IO;
+using FrostySdk.Managers;
+using FrostySdk.Managers.Entries;
 using FrostySdk.Resources;
+using SharpGen.Runtime;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Windows.Input;
-using Frosty.Hash;
-using FrostySdk.Managers.Entries;
+using Vortice;
+using Vortice.Direct3D;
+using Vortice.Direct3D11;
+using Vortice.DXGI;
+using Vortice.Mathematics;
 using DXUT = Frosty.Core.Viewport.DXUT;
 
 namespace Frosty.Core.Screens
@@ -128,7 +133,7 @@ namespace Frosty.Core.Screens
             public float M31, M32, M33, M34;
             public float M41, M42, M43, M44;
 
-            public static Matrix FromSharpDX(SharpDX.Matrix m)
+            public static Matrix FromSharpDX(Matrix4x4 m)
             {
                 Matrix mat = new Matrix
                 {
@@ -152,9 +157,9 @@ namespace Frosty.Core.Screens
                 return mat;
             }
 
-            public SharpDX.Matrix ToSharpDX()
+            public Matrix4x4 ToSharpDX()
             {
-                SharpDX.Matrix m = new SharpDX.Matrix(M11, M12, M13, M14, M21, M22, M23, M24, M31, M32, M33, M34, M41, M42, M43, M44);
+                Matrix4x4 m = new Matrix4x4(M11, M12, M13, M14, M21, M22, M23, M24, M31, M32, M33, M34, M41, M42, M43, M44);
                 return m;
             }
         }
@@ -623,14 +628,14 @@ namespace Frosty.Core.Screens
                 return retVal;
             }
 
-            public int FinalizeBuffer(Buffer pShadowBufferHandle, ref ShaderResourceView pShadowBufferSRV)
+            public int FinalizeBuffer(Buffer pShadowBufferHandle, ref ID3D11ShaderResourceView pShadowBufferSRV)
             {
                 FinalizeBufferFunc InternalFinalizeBuffer = Marshal.GetDelegateForFunctionPointer<FinalizeBufferFunc>(GetVtableEntry(15));
                 IntPtr srvPtr = InteropUtils.AddressOf(IntPtr.Zero);
 
                 int retVal = InternalFinalizeBuffer(nativePtr, pShadowBufferHandle.ptr, srvPtr);
                 if (retVal == 0)
-                    pShadowBufferSRV = new ShaderResourceView(Marshal.ReadIntPtr(srvPtr));
+                    pShadowBufferSRV = new ID3D11ShaderResourceView(Marshal.ReadIntPtr(srvPtr));
 
                 Marshal.FreeHGlobal(srvPtr);
                 return retVal;
@@ -682,7 +687,7 @@ namespace Frosty.Core.Screens
             return retVal;
         }
 
-        public static void Init(Device device, SharpDX.Direct3D11.DeviceContext context, int width, int height, ref Context shadowContext, ref Map shadowMapHandle, ref Buffer shadowBufferHandle)
+        public static void Init(ID3D11Device device, ID3D11DeviceContext context, int width, int height, ref Context shadowContext, ref Map shadowMapHandle, ref Buffer shadowBufferHandle)
         {
             if (shadowContext != null)
                 return;
@@ -706,6 +711,7 @@ namespace Frosty.Core.Screens
                 return;
 
             uint shadowMapRes = (uint)Config.Get<int>("RenderShadowRes", 2048);
+            //uint shadowMapRes = (uint)Config.Get<int>("Render", "ShadowRes", 2048);
             uint FTMapRes = 256;
             uint FTMapScale = 8;
             uint RTMapRes = 256;
@@ -854,7 +860,7 @@ namespace Frosty.Core.Screens
         public delegate int GenerateMotionVectorFunc(IntPtr self, IntPtr context, IntPtr rtv, IntPtr depthSrv, MotionVectorParameters inParams);
         public delegate int CopyTargetFunc(IntPtr self, IntPtr deviceContext, IntPtr target, IntPtr source);
 
-        public static void Init(Device device, ref IntPtr txaaContext, ref IntPtr motionVectorGenerator)
+        public static void Init(ID3D11Device device, ref IntPtr txaaContext, ref IntPtr motionVectorGenerator)
         {
             // txaa
             txaaContext = Marshal.AllocHGlobal(8192);
@@ -1124,7 +1130,7 @@ namespace Frosty.Core.Screens
             public float MinDepth;
             public float MaxDepth;
 
-            public static InputViewport FromViewport(SharpDX.Viewport viewport)
+            public static InputViewport FromViewport(Vortice.Mathematics.Viewport viewport)
             {
                 return new InputViewport
                 {
@@ -1141,7 +1147,7 @@ namespace Frosty.Core.Screens
 
         public struct MatrixData
         {
-            public Matrix Data;
+            public Matrix4x4 Data;
             public MatrixLayout Layout;
         }
         public struct InputNormalData
@@ -1226,7 +1232,7 @@ namespace Frosty.Core.Screens
             // 0 = GetAllocatedVideoMemoryBytes
 
             // RenderAO
-            public int RenderAO(DeviceContext pDeviceContext, InputData InputData, Parameters Parameters, Output Output, RenderMask RenderMask = RenderMask.RenderAO)
+            public int RenderAO(ID3D11DeviceContext pDeviceContext, InputData InputData, Parameters Parameters, Output Output, RenderMask RenderMask = RenderMask.RenderAO)
             {
                 RenderAOFunc RenderAOInternal = Marshal.GetDelegateForFunctionPointer<RenderAOFunc>(GetVtableEntry(1));
                 return RenderAOInternal(nativePtr, pDeviceContext.NativePointer, InputData, Parameters, Output, RenderMask);
@@ -1254,7 +1260,7 @@ namespace Frosty.Core.Screens
         [DllImport("thirdparty/GFSDK_SSAO_D3D11.win64.dll", EntryPoint = "GFSDK_SSAO_CreateContext_D3D11")]
         private static extern int CreateContextInternal(IntPtr pD3DDevice, IntPtr ppContext, IntPtr pCustomHeap, Version HeaderVersion);
 
-        public static int CreateContext(Device device, out Context ppContext)
+        public static int CreateContext(ID3D11Device device, out Context ppContext)
         {
             ppContext = null;
 
@@ -1267,42 +1273,50 @@ namespace Frosty.Core.Screens
             return retVal;
         }
 
-        public static int Init(Device device, ref Context context)
+        public static int Init(ID3D11Device device, ref Context context)
         {
             int retVal = CreateContext(device, out context);
             return retVal;
         }
     }
 
+    public sealed class ReferenceCountHolder(uint count)
+    {
+        public uint Count { get; set; } = count;
+    }
+
     public class TextureLibrary : IDisposable
     {
-        private Dictionary<string, Tuple<SharpDX.Direct3D11.Resource, ShaderResourceView>> textures = new Dictionary<string, Tuple<SharpDX.Direct3D11.Resource, ShaderResourceView>>();
-        private Device device;
+        private Dictionary<string, Tuple<ID3D11Resource, ID3D11ShaderResourceView>> textures = new();
+        private ID3D11Device device;
 
-        public TextureLibrary(Device inDevice)
+        public TextureLibrary(ID3D11Device inDevice)
         {
             device = inDevice;
         }
 
-        public ShaderResourceView LoadTextureAsset(string filename, bool generateMips = false)
+        public ID3D11ShaderResourceView LoadTextureAsset(string filename, bool generateMips = false)
         {
             if (textures.ContainsKey(filename))
             {
-                int count = (int)textures[filename].Item1.Tag;
-                textures[filename].Item1.Tag = ++count;
+                /* `Tag` doesn't allow us to set it multiple times, so we need to use a different means. */
+                var holder = (ReferenceCountHolder)(textures[filename].Item1.Tag);
+
+                uint count = holder.Count;
+                holder.Count = ++count;
 
                 return textures[filename].Item2;
             }
 
-            Texture2D dxtex = TextureUtils.LoadTexture(device, filename, generateMips);
-            ShaderResourceView srv = new ShaderResourceView(device, dxtex);
-            dxtex.Tag = (int)1;
+            ID3D11Texture2D dxtex = TextureUtils.LoadTexture(device, filename, generateMips);
+            ID3D11ShaderResourceView srv = device.CreateShaderResourceView(dxtex);
+            dxtex.Tag = new ReferenceCountHolder(1);
 
-            textures.Add(filename, new Tuple<SharpDX.Direct3D11.Resource, ShaderResourceView>(dxtex, srv));
+            textures.Add(filename, new Tuple<ID3D11Resource, ID3D11ShaderResourceView>(dxtex, srv));
             return srv;
         }
 
-        public ShaderResourceView LoadTextureAsset(Guid AssetGuid, bool generateMips = false)
+        public ID3D11ShaderResourceView LoadTextureAsset(Guid AssetGuid, bool generateMips = false)
         {
             if (AssetGuid == Guid.Empty)
                 return null;
@@ -1313,8 +1327,9 @@ namespace Frosty.Core.Screens
 
             if (textures.ContainsKey(entry.Name))
             {
-                int count = (int)textures[entry.Name].Item1.Tag;
-                textures[entry.Name].Item1.Tag = ++count;
+                var holder = (ReferenceCountHolder)(textures[entry.Name].Item1.Tag);
+                uint count = holder.Count;
+                holder.Count = ++count;
 
                 return textures[entry.Name].Item2;
             }
@@ -1331,8 +1346,8 @@ namespace Frosty.Core.Screens
                 if (texture.Type == TextureType.TT_3d)
                 {
                     // @temp
-                    desc.Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.Texture2DArray;
-                    desc.Texture2DArray = new ShaderResourceViewDescription.Texture2DArrayResource()
+                    desc.ViewDimension = ShaderResourceViewDimension.Texture2DArray;
+                    desc.Texture2DArray = new Texture2DArrayShaderResourceView()
                     {
                         ArraySize = texture.Depth,
                         FirstArraySlice = 0,
@@ -1342,8 +1357,8 @@ namespace Frosty.Core.Screens
                 }
                 else if (texture.Type == TextureType.TT_Cube)
                 {
-                    desc.Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.TextureCube;
-                    desc.TextureCube = new ShaderResourceViewDescription.TextureCubeResource()
+                    desc.ViewDimension = ShaderResourceViewDimension.TextureCube;
+                    desc.TextureCube = new TextureCubeShaderResourceView()
                     {
                         MipLevels = texture.MipCount,
                         MostDetailedMip = 0
@@ -1353,8 +1368,8 @@ namespace Frosty.Core.Screens
                 {
                     if (texture.SliceCount > 1)
                     {
-                        desc.Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.Texture2DArray;
-                        desc.Texture2DArray = new ShaderResourceViewDescription.Texture2DArrayResource()
+                        desc.ViewDimension = ShaderResourceViewDimension.Texture2DArray;
+                        desc.Texture2DArray = new Texture2DArrayShaderResourceView()
                         {
                             ArraySize = texture.SliceCount,
                             FirstArraySlice = 0,
@@ -1364,8 +1379,8 @@ namespace Frosty.Core.Screens
                     }
                     else
                     {
-                        desc.Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.Texture2D;
-                        desc.Texture2D = new ShaderResourceViewDescription.Texture2DResource()
+                        desc.ViewDimension = ShaderResourceViewDimension.Texture2D;
+                        desc.Texture2D = new Texture2DShaderResourceView()
                         {
                             MipLevels = texture.MipCount,
                             MostDetailedMip = 0
@@ -1374,29 +1389,30 @@ namespace Frosty.Core.Screens
                 }
 
                 var dxtex = TextureUtils.LoadTexture(device, texture, generateMips);
-                ShaderResourceView srv = new ShaderResourceView(device, dxtex, desc);
+                ID3D11ShaderResourceView srv = device.CreateShaderResourceView(dxtex, desc);
 
-                dxtex.Tag = (int)1;
-                textures.Add(entry.Name, new Tuple<SharpDX.Direct3D11.Resource, ShaderResourceView>(dxtex, srv));
+                dxtex.Tag = new ReferenceCountHolder(1);
+                textures.Add(entry.Name, new Tuple<ID3D11Resource, ID3D11ShaderResourceView>(dxtex, srv));
 
                 return srv;
             }
         }
 
-        public void UnloadTexture(ShaderResourceView srv)
+        public void UnloadTexture(ID3D11ShaderResourceView srv)
         {
             if (srv == null)
                 return;
 
             foreach (string key in textures.Keys)
             {
-                Tuple<SharpDX.Direct3D11.Resource, ShaderResourceView> tview = textures[key];
+                Tuple<ID3D11Resource, ID3D11ShaderResourceView> tview = textures[key];
                 if (tview.Item2 == srv)
                 {
-                    int count = (int)tview.Item1.Tag;
+                    var holder = (ReferenceCountHolder)(tview.Item1.Tag);
+                    uint count = holder.Count;
                     if (--count != 0)
                     {
-                        tview.Item1.Tag = count;
+                        holder.Count = count;
                         return;
                     }
 
@@ -1408,15 +1424,15 @@ namespace Frosty.Core.Screens
             }
         }
 
-        public void UnloadTextures(params ShaderResourceView[] srvs)
+        public void UnloadTextures(params ID3D11ShaderResourceView[] srvs)
         {
-            foreach (ShaderResourceView srv in srvs)
+            foreach (ID3D11ShaderResourceView srv in srvs)
                 UnloadTexture(srv);
         }
 
         public void Dispose()
         {
-            foreach (Tuple<SharpDX.Direct3D11.Resource, ShaderResourceView> tuple in textures.Values)
+            foreach (Tuple<ID3D11Resource, ID3D11ShaderResourceView> tuple in textures.Values)
             {
                 tuple.Item1.Dispose();
                 tuple.Item2.Dispose();
@@ -1518,29 +1534,29 @@ namespace Frosty.Core.Screens
 
     public class GBuffer : IDisposable
     {
-        public Texture2D Texture { get; private set; }
-        public ShaderResourceView SRV { get; private set; }
-        public RenderTargetView RTV { get; private set; }
+        public ID3D11Texture2D Texture { get; private set; }
+        public ID3D11ShaderResourceView SRV { get; private set; }
+        public ID3D11RenderTargetView RTV { get; private set; }
         public Color4 ClearColor { get; private set; }
         public string DebugName { get; private set; }
 
-        public GBuffer(Device device, SharpDX.DXGI.Format format, int width, int height, Color4 clearColor, string debugName = "")
+        public GBuffer(ID3D11Device device, Format format, int width, int height, Color4 clearColor, string debugName = "")
         {
-            Texture = new Texture2D(device, new Texture2DDescription()
+            Texture = device.CreateTexture2D(new Texture2DDescription()
             {
                 Format = format,
-                Width = width,
-                Height = height,
+                Width = (uint)(width),
+                Height = (uint)(height),
                 ArraySize = 1,
                 BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
-                CpuAccessFlags = CpuAccessFlags.None,
+                CPUAccessFlags = CpuAccessFlags.None,
                 MipLevels = 1,
-                OptionFlags = ResourceOptionFlags.None,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                MiscFlags = ResourceOptionFlags.None,
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             });
-            SRV = new ShaderResourceView(device, Texture);
-            RTV = new RenderTargetView(device, Texture);
+            SRV = device.CreateShaderResourceView(Texture);
+            RTV = device.CreateRenderTargetView(Texture);
             ClearColor = clearColor;
 
             Texture.DebugName = debugName;
@@ -1548,7 +1564,7 @@ namespace Frosty.Core.Screens
             RTV.DebugName = debugName + " (RTV)";
         }
 
-        public void Clear(DeviceContext context)
+        public void Clear(ID3D11DeviceContext context)
         {
             context.ClearRenderTargetView(RTV, ClearColor);
         }
@@ -1563,39 +1579,39 @@ namespace Frosty.Core.Screens
 
     public struct GBufferDescription
     {
-        public SharpDX.DXGI.Format Format { get; set; }
-        public SharpDX.Color4 ClearColor { get; set; }
+        public Format Format { get; set; }
+        public Color4 ClearColor { get; set; }
         public string DebugName { get; set; }
     }
 
     public class GBufferCollection : IDisposable
     {
         private List<GBuffer> gBuffers = new List<GBuffer>();
-        public GBufferCollection(Device device, int width, int height, params GBufferDescription[] descriptions)
+        public GBufferCollection(ID3D11Device device, int width, int height, params GBufferDescription[] descriptions)
         {
             foreach (GBufferDescription description in descriptions)
                 gBuffers.Add(new GBuffer(device, description.Format, width, height, description.ClearColor, description.DebugName));
         }
 
-        public ShaderResourceView[] GBufferSRVs {
+        public ID3D11ShaderResourceView[] GBufferSRVs {
             get {
-                ShaderResourceView[] srvs = new ShaderResourceView[gBuffers.Count];
+                ID3D11ShaderResourceView[] srvs = new ID3D11ShaderResourceView[gBuffers.Count];
                 for (int i = 0; i < gBuffers.Count; i++)
                     srvs[i] = gBuffers[i].SRV;
                 return srvs;
             }
         }
 
-        public RenderTargetView[] GBufferRTVs {
+        public ID3D11RenderTargetView[] GBufferRTVs {
             get {
-                RenderTargetView[] rtvs = new RenderTargetView[gBuffers.Count];
+                ID3D11RenderTargetView[] rtvs = new ID3D11RenderTargetView[gBuffers.Count];
                 for (int i = 0; i < gBuffers.Count; i++)
                     rtvs[i] = gBuffers[i].RTV;
                 return rtvs;
             }
         }
 
-        public void Clear(DeviceContext context)
+        public void Clear(ID3D11DeviceContext context)
         {
             foreach (GBuffer gBuffer in gBuffers)
                 gBuffer.Clear(context);
@@ -1612,7 +1628,7 @@ namespace Frosty.Core.Screens
     public struct MeshRenderInstance
     {
         public MeshRenderBase RenderMesh;
-        public Matrix Transform;
+        public Matrix4x4 Transform;
     }
 
     public enum LightRenderType
@@ -1623,7 +1639,7 @@ namespace Frosty.Core.Screens
     public struct LightRenderInstance
     {
         public LightRenderType Type;
-        public Matrix Transform;
+        public Matrix4x4 Transform;
         public Vector3 Color;
         public float Intensity;
         public float AttenuationRadius;
@@ -1650,32 +1666,32 @@ namespace Frosty.Core.Screens
 
     public class BindableTexture : IDisposable
     {
-        public Texture2D Texture { get; protected set; }
-        public ShaderResourceView SRV { get; protected set; }
-        public RenderTargetView RTV { get; protected set; }
+        public ID3D11Texture2D Texture { get; protected set; }
+        public ID3D11ShaderResourceView SRV { get; protected set; }
+        public ID3D11RenderTargetView RTV { get; protected set; }
 
         protected BindableTexture()
         {
         }
 
-        public BindableTexture(Device device, Texture2DDescription description, bool srv, bool rtv, ShaderResourceViewDescription? srvDesc = null, RenderTargetViewDescription? rtvDesc = null)
+        public BindableTexture(ID3D11Device device, Texture2DDescription description, bool srv, bool rtv, ShaderResourceViewDescription? srvDesc = null, RenderTargetViewDescription? rtvDesc = null)
         {
             description.BindFlags |= (srv) ? BindFlags.ShaderResource : BindFlags.None;
             description.BindFlags |= (rtv) ? BindFlags.RenderTarget : BindFlags.None;
             description.BindFlags |= GetAdditionalFlags();
 
-            Texture = new Texture2D(device, description);
+            Texture = device.CreateTexture2D(description);
             if (srv)
             {
-                SRV = srvDesc != null ? new ShaderResourceView(device, Texture, srvDesc.Value) : new ShaderResourceView(device, Texture);
+                SRV = srvDesc != null ? device.CreateShaderResourceView(Texture, srvDesc.Value) : device.CreateShaderResourceView(Texture);
             }
             if (rtv)
             {
-                RTV = rtvDesc != null ? new RenderTargetView(device, Texture, rtvDesc.Value) : new RenderTargetView(device, Texture);
+                RTV = rtvDesc != null ? device.CreateRenderTargetView(Texture, rtvDesc.Value) : device.CreateRenderTargetView(Texture);
             }
         }
 
-        public void Clear(DeviceContext context, Color4 color)
+        public void Clear(ID3D11DeviceContext context, Color4 color)
         {
             context.ClearRenderTargetView(RTV, color);
         }
@@ -1695,54 +1711,54 @@ namespace Frosty.Core.Screens
 
     public class BindableCubeTexture : BindableTexture, IDisposable
     {
-        private RenderTargetView[] rtvs;
+        private ID3D11RenderTargetView[] rtvs;
         private int arraySize;
         private int mipCount;
 
-        public BindableCubeTexture(Device device, Texture2DDescription description, bool srv, bool rtv, ShaderResourceViewDescription? srvDesc = null, RenderTargetViewDescription? rtvDesc = null)
+        public BindableCubeTexture(ID3D11Device device, Texture2DDescription description, bool srv, bool rtv, ShaderResourceViewDescription? srvDesc = null, RenderTargetViewDescription? rtvDesc = null)
         {
             description.BindFlags |= (srv) ? BindFlags.ShaderResource : BindFlags.None;
             description.BindFlags |= (rtv) ? BindFlags.RenderTarget : BindFlags.None;
 
-            Texture = new Texture2D(device, description);
+            Texture = device.CreateTexture2D(description);
             if (srv)
             {
-                SRV = srvDesc != null ? new ShaderResourceView(device, Texture, srvDesc.Value) : new ShaderResourceView(device, Texture);
+                SRV = srvDesc != null ? device.CreateShaderResourceView(Texture, srvDesc.Value) : device.CreateShaderResourceView(Texture);
             }
             if (rtv)
             {
-                arraySize = description.ArraySize;
-                mipCount = description.MipLevels;
-                rtvs = new RenderTargetView[arraySize * mipCount];
+                arraySize = (int)(description.ArraySize);
+                mipCount = (int)(description.MipLevels);
+                rtvs = new ID3D11RenderTargetView[arraySize * mipCount];
 
                 if (!rtvDesc.HasValue)
                     rtvDesc = new RenderTargetViewDescription() { Format = description.Format };
 
-                for (int i = 0; i < arraySize; i++)
+                for (uint i = 0; i < arraySize; i++)
                 {
-                    for (int j = 0; j < mipCount; j++)
+                    for (uint j = 0; j < mipCount; j++)
                     {
                         RenderTargetViewDescription desc = rtvDesc.Value;
-                        desc.Dimension = RenderTargetViewDimension.Texture2DArray;
-                        desc.Texture2DArray = new RenderTargetViewDescription.Texture2DArrayResource()
+                        desc.ViewDimension = RenderTargetViewDimension.Texture2DArray;
+                        desc.Texture2DArray = new Texture2DArrayRenderTargetView()
                         {
                             FirstArraySlice = i,
                             MipSlice = j,
                             ArraySize = 1
                         };
 
-                        rtvs[(i * mipCount) + j] = new RenderTargetView(device, Texture, desc);
+                        rtvs[(i * mipCount) + j] = device.CreateRenderTargetView(Texture, desc);
                     }
                 }
             }
         }
 
-        public RenderTargetView GetRTV(int arraySlice, int mipLevel)
+        public ID3D11RenderTargetView GetRTV(int arraySlice, int mipLevel)
         {
             return rtvs[(arraySlice * mipCount) + mipLevel];
         }
 
-        public void Clear(DeviceContext context, int arraySlice, int mipLevel, Color4 color)
+        public void Clear(ID3D11DeviceContext context, int arraySlice, int mipLevel, Color4 color)
         {
             context.ClearRenderTargetView(rtvs[(arraySlice * mipCount) + mipLevel], color);
         }
@@ -1750,21 +1766,21 @@ namespace Frosty.Core.Screens
         public override void Dispose()
         {
             base.Dispose();
-            foreach (RenderTargetView rtv in rtvs)
+            foreach (ID3D11RenderTargetView rtv in rtvs)
                 rtv.Dispose();
         }
     }
 
     public class BindableDepthTexture : BindableTexture, IDisposable
     {
-        public DepthStencilView DSV { get; protected set; }
-        public BindableDepthTexture(Device device, Texture2DDescription description, bool srv, DepthStencilViewDescription? dsvDesc = null, ShaderResourceViewDescription? srvDesc = null)
+        public ID3D11DepthStencilView DSV { get; protected set; }
+        public BindableDepthTexture(ID3D11Device device, Texture2DDescription description, bool srv, DepthStencilViewDescription? dsvDesc = null, ShaderResourceViewDescription? srvDesc = null)
             : base(device, description, srv, false, srvDesc)
         {
-            DSV = dsvDesc.HasValue ? new DepthStencilView(device, Texture, dsvDesc.Value) : new DepthStencilView(device, Texture);
+            DSV = dsvDesc.HasValue ? device.CreateDepthStencilView(Texture, dsvDesc.Value) : device.CreateDepthStencilView(Texture);
         }
 
-        public void Clear(DeviceContext context, bool clearDepth, bool clearStencil, float depth, byte stencil)
+        public void Clear(ID3D11DeviceContext context, bool clearDepth, bool clearStencil, float depth, byte stencil)
         {
             DepthStencilClearFlags flags = 0;
             flags |= (clearDepth) ? DepthStencilClearFlags.Depth : 0;
@@ -1787,16 +1803,16 @@ namespace Frosty.Core.Screens
 
     public class BindableBuffer : IDisposable
     {
-        public SharpDX.Direct3D11.Buffer Buffer { get; private set; }
-        public ShaderResourceView SRV { get; private set; }
+        public ID3D11Buffer Buffer { get; private set; }
+        public ID3D11ShaderResourceView SRV { get; private set; }
         public int SizeInBytes { get; private set; }
 
-        public BindableBuffer(Device device, int sizeInBytes, bool srv)
+        public BindableBuffer(ID3D11Device device, int sizeInBytes, bool srv)
         {
             Construct(device, sizeInBytes, srv);
         }
 
-        protected void Construct(Device device, int sizeInBytes, bool srv)
+        protected void Construct(ID3D11Device device, int sizeInBytes, bool srv)
         {
             SizeInBytes = sizeInBytes;
 
@@ -1806,22 +1822,22 @@ namespace Frosty.Core.Screens
             BufferDescription desc = new BufferDescription()
             {
                 BindFlags = flags,
-                CpuAccessFlags = CpuAccessFlags.Write,
-                OptionFlags = ResourceOptionFlags.None,
-                SizeInBytes = SizeInBytes,
+                CPUAccessFlags = CpuAccessFlags.Write,
+                MiscFlags = ResourceOptionFlags.None,
+                ByteWidth = (uint)(SizeInBytes),
                 Usage = ResourceUsage.Dynamic,
             };
-            Buffer = new SharpDX.Direct3D11.Buffer(device, desc);
+            Buffer = device.CreateBuffer(desc);
             if (srv)
             {
-                SRV = new ShaderResourceView(device, Buffer, new ShaderResourceViewDescription()
+                SRV = device.CreateShaderResourceView(Buffer, new ShaderResourceViewDescription()
                 {
-                    Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.Buffer,
-                    Format = SharpDX.DXGI.Format.R32G32B32A32_Float,
-                    Buffer = new ShaderResourceViewDescription.BufferResource()
+                    ViewDimension = ShaderResourceViewDimension.Buffer,
+                    Format = Format.R32G32B32A32_Float,
+                    Buffer = new BufferShaderResourceView()
                     {
-                        ElementCount = 1,
-                        ElementWidth = SizeInBytes / 16
+                        NumElements = 1,
+                        ElementWidth = (uint)(SizeInBytes / 16)
                     }
                 });
             }
@@ -1838,13 +1854,13 @@ namespace Frosty.Core.Screens
     {
         public int BoneCount { get; private set; }
 
-        public BoneBuffer(Device device, int numBones)
+        public BoneBuffer(ID3D11Device device, int numBones)
             : base(device, 3 * 16 * numBones, true)
         {
             BoneCount = numBones;
         }
 
-        public void Update(DeviceContext context, int realBoneCount, params Matrix[] boneMatrices)
+        public void Update(ID3D11DeviceContext context, int realBoneCount, params Matrix4x4[] boneMatrices)
         {
             if (boneMatrices.Length > BoneCount)
             {
@@ -1857,18 +1873,21 @@ namespace Frosty.Core.Screens
             if (realBoneCount == -1)
                 realBoneCount = 0;
 
-            context.MapSubresource(Buffer, 0, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+            context.Map(Buffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mappedResource);
             {
+                using var stream = new Vortice.DataStream(mappedResource.DataPointer, Buffer.Description.ByteWidth, true, true);
+
                 stream.Write(new Vector4((float)realBoneCount, 0, 0, 0));
-                foreach (Matrix boneMatrix in boneMatrices)
+                foreach (Matrix4x4 boneMatrix in boneMatrices)
                 {
-                    boneMatrix.Transpose();
-                    stream.Write(boneMatrix.Row1);
-                    stream.Write(boneMatrix.Row2);
-                    stream.Write(boneMatrix.Row3);
+                    Matrix4x4 transposed = Matrix4x4.Transpose(boneMatrix);
+
+                    stream.Write(transposed.GetRow(0));
+                    stream.Write(transposed.GetRow(1));
+                    stream.Write(transposed.GetRow(2));
                 }
             }
-            context.UnmapSubresource(Buffer, 0);
+            context.Unmap(Buffer, 0);
         }
     }
 
@@ -1985,22 +2004,17 @@ namespace Frosty.Core.Screens
 
     public class DeferredRenderScreen2 : Screen
     {
-
-#if DEBUG
-        public static bool EnablePerfMarkers = false;
-#endif
-
         #region -- Shader Constants --
         protected struct ViewConstants
         {
             public Vector4 Time;
             public Vector4 ScreenSize;
-            public Matrix ViewMatrix;
-            public Matrix ProjMatrix;
-            public Matrix ViewProjMatrix;
-            public Matrix CrViewProjMatrix;
-            public Matrix PrevViewProjMatrix;
-            public Matrix CrPrevViewProjMatrix;
+            public Matrix4x4 ViewMatrix;
+            public Matrix4x4 ProjMatrix;
+            public Matrix4x4 ViewProjMatrix;
+            public Matrix4x4 CrViewProjMatrix;
+            public Matrix4x4 PrevViewProjMatrix;
+            public Matrix4x4 CrPrevViewProjMatrix;
             public Matrix4x3 NormalBasisTransforms1;
             public Matrix4x3 NormalBasisTransforms2;
             public Matrix4x3 NormalBasisTransforms3;
@@ -2013,8 +2027,8 @@ namespace Frosty.Core.Screens
 
         protected struct CommonConstants
         {
-            public Matrix InvViewProjMatrix;
-            public Matrix InvProjMatrix;
+            public Matrix4x4 InvViewProjMatrix;
+            public Matrix4x4 InvProjMatrix;
             public Vector4 CameraPos;
             public Vector4 InvScreenSize;
             public Vector4 ExposureMultipliers;
@@ -2083,7 +2097,7 @@ namespace Frosty.Core.Screens
 
         protected struct FunctionConstants
         {
-            public Matrix WorldMatrix;
+            public Matrix4x4 WorldMatrix;
             public Vector4 LightProbe1;
             public Vector4 LightProbe2;
             public Vector4 LightProbe3;
@@ -2134,7 +2148,7 @@ namespace Frosty.Core.Screens
         protected ConstantBuffer<LightConstants> lightConstants;
         protected ConstantBuffer<CubeMapConstants> cubeMapConstants;
         protected ConstantBuffer<TableLookupConstants> lookupTableConstants;
-        protected SharpDX.Direct3D11.Buffer postProcessConstants;
+        protected ID3D11Buffer postProcessConstants;
 
         // resources
         protected BindableTexture normalBasisCubemapTexture;
@@ -2157,37 +2171,37 @@ namespace Frosty.Core.Screens
         protected BindableTexture[] bloomTextures = new BindableTexture[3];
 
         // light shaders
-        protected PixelShader psSunLight;
-        protected PixelShader psPointLight;
-        protected PixelShader psSphereLight;
+        protected ID3D11PixelShader psSunLight;
+        protected ID3D11PixelShader psPointLight;
+        protected ID3D11PixelShader psSphereLight;
 
         // IBL shaders
-        protected PixelShader psIntegrateDFG;
-        protected PixelShader psIntegrateDiffuseLD;
-        protected PixelShader psIntegrateSpecularLD;
-        protected PixelShader psIBLRender;
+        protected ID3D11PixelShader psIntegrateDFG;
+        protected ID3D11PixelShader psIntegrateDiffuseLD;
+        protected ID3D11PixelShader psIntegrateSpecularLD;
+        protected ID3D11PixelShader psIBLRender;
 
         // utility shaders
-        protected VertexShader vsFullscreenQuad;
-        protected PixelShader psResolve;
-        protected PixelShader psResolveDepthToMsaa;
-        protected PixelShader psResolveWorldNormals;
+        protected ID3D11VertexShader vsFullscreenQuad;
+        protected ID3D11PixelShader psResolve;
+        protected ID3D11PixelShader psResolveDepthToMsaa;
+        protected ID3D11PixelShader psResolveWorldNormals;
 
         // post processing shaders
-        protected PixelShader psDownscale4x4;
-        protected PixelShader psSampleLumInitial;
-        protected PixelShader psSampleLumIterative;
-        protected PixelShader psSampleLumFinal;
-        protected PixelShader psCalcAdaptedLum;
-        protected PixelShader psLookupTable;
-        protected PixelShader psEditorComposite;
-        protected PixelShader psSelectionOutline;
-        protected PixelShader psDebugRenderMode;
-        protected PixelShader psBrightPass;
-        protected PixelShader psGaussianBlur5x5;
-        protected PixelShader psDownSample2x2;
-        protected PixelShader psBloomBlur;
-        protected PixelShader psRenderBloom;
+        protected ID3D11PixelShader psDownscale4x4;
+        protected ID3D11PixelShader psSampleLumInitial;
+        protected ID3D11PixelShader psSampleLumIterative;
+        protected ID3D11PixelShader psSampleLumFinal;
+        protected ID3D11PixelShader psCalcAdaptedLum;
+        protected ID3D11PixelShader psLookupTable;
+        protected ID3D11PixelShader psEditorComposite;
+        protected ID3D11PixelShader psSelectionOutline;
+        protected ID3D11PixelShader psDebugRenderMode;
+        protected ID3D11PixelShader psBrightPass;
+        protected ID3D11PixelShader psGaussianBlur5x5;
+        protected ID3D11PixelShader psDownSample2x2;
+        protected ID3D11PixelShader psBloomBlur;
+        protected ID3D11PixelShader psRenderBloom;
 
         // txaa
         protected IntPtr txaaContext;
@@ -2200,7 +2214,7 @@ namespace Frosty.Core.Screens
         protected GFSDK_ShadowLib.Context shadowContext;
         protected GFSDK_ShadowLib.Map shadowMapHandle;
         protected GFSDK_ShadowLib.Buffer shadowBufferHandle;
-        protected ShaderResourceView shadowSRV;
+        protected ID3D11ShaderResourceView shadowSRV;
 
         // hbao
         protected GFSDK_SSAO.Context hbaoContext;
@@ -2221,7 +2235,7 @@ namespace Frosty.Core.Screens
         public float SunIntensity { get; set; } = 1000.0f;
         public float SunAngularRadius { get; set; } = 0.029f;
 
-        public ShaderResourceView DistantLightProbe {
+        public ID3D11ShaderResourceView DistantLightProbe {
             get => distantLightProbe;
             set {
                 distantLightProbe = value;
@@ -2231,7 +2245,7 @@ namespace Frosty.Core.Screens
             }
         }
         public float LightProbeIntensity { get; set; } = 1.0f;
-        public ShaderResourceView LookupTable { get; set; }
+        public ID3D11ShaderResourceView LookupTable { get; set; }
         public Vector4[] SHLightProbe { get; set; } = new Vector4[9];
         public DebugRenderMode RenderMode { get; set; }
         public bool GroundVisible { get; set; } = true;
@@ -2239,8 +2253,8 @@ namespace Frosty.Core.Screens
         public float MinEV100 { get; set; } = 8.0f;
         public float MaxEV100 { get; set; } = 20.0f;
 
-        private ShaderResourceView distantLightProbe;
-        private ShaderResourceView defaultDistantLightProbe;
+        private ID3D11ShaderResourceView distantLightProbe;
+        private ID3D11ShaderResourceView defaultDistantLightProbe;
         private bool bRecalculateLightProbe;
 
         private MeshRenderShape skySphere;
@@ -2291,6 +2305,8 @@ namespace Frosty.Core.Screens
 
             GroundVisible = Config.Get<bool>("MeshSetViewerShowFloor", true);
             GridVisible = Config.Get<bool>("MeshSetViewerShowGrid", true);
+            //GroundVisible = Config.Get<bool>("MeshViewer", "ShowFloor", true);
+            //GridVisible = Config.Get<bool>("MeshViewer", "ShowGrid", true);
         }
 
         #region -- Creation --
@@ -2302,29 +2318,29 @@ namespace Frosty.Core.Screens
             // initialize the gbuffers
             gBufferCollection = new GBufferCollection(Viewport.Device, Viewport.ViewportWidth, Viewport.ViewportHeight, new GBufferDescription[]
             {
-                new GBufferDescription() { Format = SharpDX.DXGI.Format.R10G10B10A2_UNorm, ClearColor = new Color4(0,0,0,0), DebugName = "GBufferA" },
-                new GBufferDescription() { Format = SharpDX.DXGI.Format.B8G8R8A8_UNorm_SRgb, ClearColor = new Color4(0,0,0,0), DebugName = "GBufferB" },
-                new GBufferDescription() { Format = SharpDX.DXGI.Format.B8G8R8A8_UNorm, ClearColor = new Color4(0,0,0,0), DebugName = "GBufferC" },
-                new GBufferDescription() { Format = SharpDX.DXGI.Format.R16G16B16A16_Float, ClearColor = new Color4(0,0,0,0), DebugName = "GBufferD" },
+                new GBufferDescription() { Format = Format.R10G10B10A2_UNorm, ClearColor = new Color4(0,0,0,0), DebugName = "GBufferA" },
+                new GBufferDescription() { Format = Format.B8G8R8A8_UNorm_SRgb, ClearColor = new Color4(0,0,0,0), DebugName = "GBufferB" },
+                new GBufferDescription() { Format = Format.B8G8R8A8_UNorm, ClearColor = new Color4(0,0,0,0), DebugName = "GBufferC" },
+                new GBufferDescription() { Format = Format.R16G16B16A16_Float, ClearColor = new Color4(0,0,0,0), DebugName = "GBufferD" },
             });
             finalColorTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R8G8B8A8_UNorm,
-                Width = Viewport.ViewportWidth,
-                Height = Viewport.ViewportHeight,
+                Format = Format.R8G8B8A8_UNorm,
+                Width = (uint)(Viewport.ViewportWidth),
+                Height = (uint)(Viewport.ViewportHeight),
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
             lightAccumulationTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R16G16B16A16_Float,
-                Width = Viewport.ViewportWidth,
-                Height = Viewport.ViewportHeight,
+                Format = Format.R16G16B16A16_Float,
+                Width = (uint)(Viewport.ViewportWidth),
+                Height = (uint)(Viewport.ViewportHeight),
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
 
@@ -2338,11 +2354,11 @@ namespace Frosty.Core.Screens
             scaledSceneTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Width = scaledWidth,
-                Height = scaledHeight,
-                Format = SharpDX.DXGI.Format.R16G16B16A16_Float,
+                Width = (uint)(scaledWidth),
+                Height = (uint)(scaledHeight),
+                Format = Format.R16G16B16A16_Float,
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
 
@@ -2350,21 +2366,21 @@ namespace Frosty.Core.Screens
             brightPassTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Width = scaledWidth,
-                Height = scaledHeight,
-                Format = SharpDX.DXGI.Format.R8G8B8A8_UNorm,
+                Width = (uint)(scaledWidth),
+                Height = (uint)(scaledHeight),
+                Format = Format.R8G8B8A8_UNorm,
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
             blurTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Width = scaledWidth,
-                Height = scaledHeight,
-                Format = SharpDX.DXGI.Format.R8G8B8A8_UNorm,
+                Width = (uint)(scaledWidth),
+                Height = (uint)(scaledHeight),
+                Format = Format.R8G8B8A8_UNorm,
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
 
             }, true, true);
@@ -2379,11 +2395,11 @@ namespace Frosty.Core.Screens
             bloomSourceTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Width = scaledWidth,
-                Height = scaledHeight,
-                Format = SharpDX.DXGI.Format.R8G8B8A8_UNorm,
+                Width = (uint)(scaledWidth),
+                Height = (uint)(scaledHeight),
+                Format = Format.R8G8B8A8_UNorm,
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
 
@@ -2392,11 +2408,11 @@ namespace Frosty.Core.Screens
                 bloomTextures[i] = new BindableTexture(Viewport.Device, new Texture2DDescription()
                 {
                     ArraySize = 1,
-                    Width = scaledWidth,
-                    Height = scaledHeight,
-                    Format = SharpDX.DXGI.Format.R8G8B8A8_UNorm,
+                    Width = (uint)(scaledWidth),
+                    Height = (uint)(scaledHeight),
+                    Format = Format.R8G8B8A8_UNorm,
                     MipLevels = 1,
-                    SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                    SampleDescription = new SampleDescription(1, 0),
                     Usage = ResourceUsage.Default
                 }, true, true);
             }
@@ -2404,11 +2420,11 @@ namespace Frosty.Core.Screens
             postProcessTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R16G16B16A16_Float,
-                Width = Viewport.ViewportWidth,
-                Height = Viewport.ViewportHeight,
+                Format = Format.R16G16B16A16_Float,
+                Width = (uint)(Viewport.ViewportWidth),
+                Height = (uint)(Viewport.ViewportHeight),
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
 
@@ -2416,21 +2432,21 @@ namespace Frosty.Core.Screens
             txaaMotionVectorsTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R16G16_Float,
-                Width = Viewport.ViewportWidth,
-                Height = Viewport.ViewportHeight,
+                Format = Format.R16G16_Float,
+                Width = (uint)(Viewport.ViewportWidth),
+                Height = (uint)(Viewport.ViewportHeight),
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
             txaaFeedbackTeture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R16G16B16A16_Float,
-                Width = Viewport.ViewportWidth,
-                Height = Viewport.ViewportHeight,
+                Format = Format.R16G16B16A16_Float,
+                Width = (uint)(Viewport.ViewportWidth),
+                Height = (uint)(Viewport.ViewportHeight),
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, false);
 
@@ -2438,11 +2454,11 @@ namespace Frosty.Core.Screens
             editorCompositeTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R8G8B8A8_UNorm,
-                Width = Viewport.ViewportWidth,
-                Height = Viewport.ViewportHeight,
+                Format = Format.R8G8B8A8_UNorm,
+                Width = (uint)(Viewport.ViewportWidth),
+                Height = (uint)(Viewport.ViewportHeight),
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(4, 0),
+                SampleDescription = new SampleDescription(4, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
 
@@ -2450,61 +2466,61 @@ namespace Frosty.Core.Screens
             editorCompositeDepthTexture = new BindableDepthTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R24G8_Typeless,
-                Width = Viewport.ViewportWidth,
-                Height = Viewport.ViewportHeight,
+                Format = Format.R24G8_Typeless,
+                Width = (uint)(Viewport.ViewportWidth),
+                Height = (uint)(Viewport.ViewportHeight),
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(4, 0),
+                SampleDescription = new SampleDescription(4, 0),
                 Usage = ResourceUsage.Default
             }, true,
             new DepthStencilViewDescription()
             {
-                Dimension = DepthStencilViewDimension.Texture2DMultisampled,
-                Format = SharpDX.DXGI.Format.D24_UNorm_S8_UInt,
-                Texture2DMS = new DepthStencilViewDescription.Texture2DMultisampledResource()
+                ViewDimension = DepthStencilViewDimension.Texture2DMultisampled,
+                Format = Format.D24_UNorm_S8_UInt,
+                Texture2DMS = new Texture2DMultisampledDepthStencilView()
             },
             new ShaderResourceViewDescription()
             {
-                Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.Texture2DMultisampled,
-                Format = SharpDX.DXGI.Format.R24_UNorm_X8_Typeless,
-                Texture2DMS = new ShaderResourceViewDescription.Texture2DMultisampledResource()
+                ViewDimension = ShaderResourceViewDimension.Texture2DMultisampled,
+                Format = Format.R24_UNorm_X8_Typeless,
+                Texture2DMS = new Texture2DMultisampledShaderResourceView()
             });
 
             // for drawing selection outlines
             selectionOutlineTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R8G8B8A8_UNorm,
-                Width = Viewport.ViewportWidth,
-                Height = Viewport.ViewportHeight,
+                Format = Format.R8G8B8A8_UNorm,
+                Width = (uint)(Viewport.ViewportWidth),
+                Height = (uint)(Viewport.ViewportHeight),
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
             selectionDepthTexture = new BindableDepthTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R24G8_Typeless,
-                Width = Viewport.ViewportWidth,
-                Height = Viewport.ViewportHeight,
+                Format = Format.R24G8_Typeless,
+                Width = (uint)(Viewport.ViewportWidth),
+                Height = (uint)(Viewport.ViewportHeight),
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true,
             new DepthStencilViewDescription()
             {
-                Dimension = DepthStencilViewDimension.Texture2D,
-                Format = SharpDX.DXGI.Format.D24_UNorm_S8_UInt,
-                Texture2D = new DepthStencilViewDescription.Texture2DResource()
+                ViewDimension = DepthStencilViewDimension.Texture2D,
+                Format = Format.D24_UNorm_S8_UInt,
+                Texture2D = new Texture2DDepthStencilView()
                 {
                     MipSlice = 0
                 }
             },
             new ShaderResourceViewDescription()
             {
-                Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.Texture2DMultisampled,
-                Format = SharpDX.DXGI.Format.R24_UNorm_X8_Typeless,
-                Texture2D = new ShaderResourceViewDescription.Texture2DResource()
+                ViewDimension = ShaderResourceViewDimension.Texture2DMultisampled,
+                Format = Format.R24_UNorm_X8_Typeless,
+                Texture2D = new Texture2DShaderResourceView()
                 {
                     MipLevels = 1,
                     MostDetailedMip = 0
@@ -2515,11 +2531,11 @@ namespace Frosty.Core.Screens
             worldNormalsForHBAOTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R8G8B8A8_UNorm,
-                Width = Viewport.ViewportWidth,
-                Height = Viewport.ViewportHeight,
+                Format = Format.R8G8B8A8_UNorm,
+                Width = (uint)(Viewport.ViewportWidth),
+                Height = (uint)(Viewport.ViewportHeight),
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
 
@@ -2545,6 +2561,10 @@ namespace Frosty.Core.Screens
             ShadowsEnabled = Config.Get<bool>("RenderShadowsEnabled", true);
             HBAOEnabled = Config.Get<bool>("RenderHBAOEnabled", true);
             TXAAEnabled = Config.Get<bool>("RenderTXAAEnabled", true);
+            //ShadowsEnabled = Config.Get<bool>("Render", "ShadowsEnabled", true);
+            //HBAOEnabled = Config.Get<bool>("Render", "HBAOEnabled", true);
+            //TXAAEnabled = Config.Get<bool>("Render", "TXAAEnabled", true);
+
 
             // initialize the libraries
             textureLibrary = new TextureLibrary(Viewport.Device);
@@ -2557,77 +2577,77 @@ namespace Frosty.Core.Screens
             lightConstants = new ConstantBuffer<LightConstants>(Viewport.Device, new LightConstants());
             cubeMapConstants = new ConstantBuffer<CubeMapConstants>(Viewport.Device, new CubeMapConstants());
             lookupTableConstants = new ConstantBuffer<TableLookupConstants>(Viewport.Device, new TableLookupConstants());
-            postProcessConstants = new SharpDX.Direct3D11.Buffer(Viewport.Device, new BufferDescription()
+            postProcessConstants = Viewport.Device.CreateBuffer(new BufferDescription()
             {
                 BindFlags = BindFlags.ConstantBuffer,
-                CpuAccessFlags = CpuAccessFlags.Write,
-                OptionFlags = ResourceOptionFlags.None,
-                SizeInBytes = 32 * 4 * 4,
+                CPUAccessFlags = CpuAccessFlags.Write,
+                MiscFlags = ResourceOptionFlags.None,
+                ByteWidth = 32 * 4 * 4,
                 StructureByteStride = 0,
                 Usage = ResourceUsage.Dynamic
             });
 
             // shaders
-            psSunLight = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "SunLight");
-            psPointLight = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "PointLight");
-            psSphereLight = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "SphereLight");
+            psSunLight = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "SunLight");
+            psPointLight = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "PointLight");
+            psSphereLight = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "SphereLight");
 
-            vsFullscreenQuad = FrostyShaderDb.GetShader<VertexShader>(Viewport.Device, "FullscreenQuad");
-            psResolve = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "Resolve");
-            psResolveDepthToMsaa = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "ResolveDepthToMsaa");
-            psResolveWorldNormals = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "ResolveWorldNormals");
+            vsFullscreenQuad = FrostyShaderDb.GetShader<ID3D11VertexShader>(Viewport.Device, "FullscreenQuad");
+            psResolve = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "Resolve");
+            psResolveDepthToMsaa = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "ResolveDepthToMsaa");
+            psResolveWorldNormals = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "ResolveWorldNormals");
 
-            psIntegrateDFG = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "IBL_IntegrateDFG");
-            psIntegrateDiffuseLD = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "IBL_IntegrateDiffuseLD");
-            psIntegrateSpecularLD = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "IBL_IntegrateSpecularLD");
-            psIBLRender = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "IBL_Main");
+            psIntegrateDFG = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "IBL_IntegrateDFG");
+            psIntegrateDiffuseLD = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "IBL_IntegrateDiffuseLD");
+            psIntegrateSpecularLD = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "IBL_IntegrateSpecularLD");
+            psIBLRender = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "IBL_Main");
 
-            psDownscale4x4 = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "DownScale4x4");
-            psSampleLumInitial = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "SampleLumInitial");
-            psSampleLumIterative = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "SampleLumIterative");
-            psSampleLumFinal = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "SampleLumFinal");
-            psCalcAdaptedLum = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "CalculateAdaptedLum");
-            psLookupTable = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "LookupTable");
-            psEditorComposite = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "EditorComposite");
-            psSelectionOutline = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "SelectionOutline");
-            psDebugRenderMode = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "DebugRenderMode");
-            psBrightPass = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "BrightPass");
-            psGaussianBlur5x5 = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "GaussianBlur5x5");
-            psDownSample2x2 = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "DownSample2x2");
-            psBloomBlur = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "BloomBlur");
-            psRenderBloom = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "RenderBloom");
+            psDownscale4x4 = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "DownScale4x4");
+            psSampleLumInitial = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "SampleLumInitial");
+            psSampleLumIterative = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "SampleLumIterative");
+            psSampleLumFinal = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "SampleLumFinal");
+            psCalcAdaptedLum = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "CalculateAdaptedLum");
+            psLookupTable = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "LookupTable");
+            psEditorComposite = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "EditorComposite");
+            psSelectionOutline = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "SelectionOutline");
+            psDebugRenderMode = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "DebugRenderMode");
+            psBrightPass = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "BrightPass");
+            psGaussianBlur5x5 = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "GaussianBlur5x5");
+            psDownSample2x2 = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "DownSample2x2");
+            psBloomBlur = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "BloomBlur");
+            psRenderBloom = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "RenderBloom");
 
             // resources
             preintegratedDFGTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R16G16B16A16_Float,
+                Format = Format.R16G16B16A16_Float,
                 Width = 128,
                 Height = 128,
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
             preintegratedDLDTexture = new BindableCubeTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 6,
-                Format = SharpDX.DXGI.Format.R16G16B16A16_Float,
+                Format = Format.R16G16B16A16_Float,
                 Height = 32,
                 Width = 32,
                 MipLevels = 1,
-                OptionFlags = ResourceOptionFlags.TextureCube,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                MiscFlags = ResourceOptionFlags.TextureCube,
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
             preintegratedSLDTexture = new BindableCubeTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 6,
-                Format = SharpDX.DXGI.Format.R16G16B16A16_Float,
+                Format = Format.R16G16B16A16_Float,
                 Height = 256,
                 Width = 256,
                 MipLevels = 9,
-                OptionFlags = ResourceOptionFlags.TextureCube,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                MiscFlags = ResourceOptionFlags.TextureCube,
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
             }, true, true);
 
@@ -2642,12 +2662,12 @@ namespace Frosty.Core.Screens
                 toneMapTextures[i] = new BindableTexture(Viewport.Device, new Texture2DDescription()
                 {
                     ArraySize = 1,
-                    Format = SharpDX.DXGI.Format.R32_Float,
-                    Height = sampleLen,
+                    Format = Format.R32_Float,
+                    Height = (uint)(sampleLen),
                     MipLevels = 1,
-                    SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                    SampleDescription = new SampleDescription(1, 0),
                     Usage = ResourceUsage.Default,
-                    Width = sampleLen
+                    Width = (uint)(sampleLen)
                 }, true, true);
             }
             toneMapTextures[5].Clear(Viewport.Context, new Color4(0.00177f, 0, 0, 0));
@@ -2656,13 +2676,13 @@ namespace Frosty.Core.Screens
             toneMapTextures[6] = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R32_Float,
-                Height = sampleLen,
+                Format = Format.R32_Float,
+                Height = (uint)(sampleLen),
                 MipLevels = 1,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Staging,
-                Width = sampleLen,
-                CpuAccessFlags = CpuAccessFlags.Read,
+                Width = (uint)(sampleLen),
+                CPUAccessFlags = CpuAccessFlags.Read,
             }, false, false);
 
             if (TXAAEnabled)
@@ -2686,12 +2706,12 @@ namespace Frosty.Core.Screens
             normalBasisCubemapTexture = new BindableTexture(Viewport.Device, new Texture2DDescription()
             {
                 ArraySize = 6,
-                Format = SharpDX.DXGI.Format.B8G8R8A8_UNorm,
+                Format = Format.B8G8R8A8_UNorm,
                 Height = 1,
                 MipLevels = 1,
                 Width = 1,
-                OptionFlags = ResourceOptionFlags.TextureCube,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                MiscFlags = ResourceOptionFlags.TextureCube,
+                SampleDescription = new SampleDescription(1, 0),
                 Usage = ResourceUsage.Default
 
             }, true, false);
@@ -2705,20 +2725,14 @@ namespace Frosty.Core.Screens
                 0x04040404,
                 0x05050505
             };
-            GCHandle handle = GCHandle.Alloc(values, GCHandleType.Pinned);
 
             for (int i = 0; i < 6; i++)
             {
-                int subResourceId = normalBasisCubemapTexture.Texture.CalculateSubResourceIndex(0, i, out int rowPitch);
+                uint subResourceId = normalBasisCubemapTexture.Texture.CalculateSubResourceIndex(0, (uint)(i), out uint rowPitch);
 
-                IntPtr bufferPtr = handle.AddrOfPinnedObject();
-                bufferPtr += (i * 4);
-
-                DataBox box = new DataBox(bufferPtr, rowPitch, 0);
-                Viewport.Device.ImmediateContext.UpdateSubresource(box, normalBasisCubemapTexture.Texture, subResourceId);
+                ReadOnlySpan<uint> data = values.AsSpan(i);
+                Viewport.Device.ImmediateContext.UpdateSubresource(data, normalBasisCubemapTexture.Texture, subResourceId, rowPitch, 0);
             }
-
-            handle.Free();
 
             skySphere = MeshRenderShape.CreateSphere(RenderCreateState, "SkySphere", "Skybox", 200000.0f, 32);
             groundBox = MeshRenderShape.CreateCube(RenderCreateState, "GroundBox", "GroundPlane", 1, 1, 1);
@@ -2760,12 +2774,12 @@ namespace Frosty.Core.Screens
                 // add in sky sphere and ground plane
                 //meshes.Add(new MeshRenderInstance() { RenderMesh = skySphere, Transform = Matrix.Identity });
                 if (GroundVisible)
-                    meshes.Add(new MeshRenderInstance() { RenderMesh = groundBox, Transform = Matrix.Scaling(8, 0.25f, 8) * Matrix.Translation(0, -0.125f, 0) });
+                    meshes.Add(new MeshRenderInstance() { RenderMesh = groundBox, Transform = Matrix4x4.CreateScale(8, 0.25f, 8) * Matrix4x4.CreateTranslation(0, -0.125f, 0) });
 
                 // add grid to editor meshes
                 editorMeshes = new List<MeshRenderInstance>();
                 if (GridVisible)
-                    editorMeshes.Add(new MeshRenderInstance() { RenderMesh = gridPlane, Transform = Matrix.Translation(0, (GroundVisible) ? -0.125f : 0.0f, 0) });
+                    editorMeshes.Add(new MeshRenderInstance() { RenderMesh = gridPlane, Transform = Matrix4x4.CreateTranslation(0, (GroundVisible) ? -0.125f : 0.0f, 0) });
 
                 {
                     GFSDK_TXAA.GetJitter(out float[] jitter);
@@ -2774,13 +2788,13 @@ namespace Frosty.Core.Screens
                     UpdateViewConstants(true);
 
                     // update the common constants
-                    Matrix invProjMatrix = camera.GetProjMatrix();
-                    Matrix invViewProjMatrix = camera.GetViewProjMatrix();
+                    Matrix4x4 invProjMatrix = camera.GetProjMatrix();
+                    Matrix4x4 invViewProjMatrix = camera.GetViewProjMatrix();
 
-                    invProjMatrix.Invert();
-                    invProjMatrix.Transpose();
-                    invViewProjMatrix.Invert();
-                    invViewProjMatrix.Transpose();
+                    Matrix4x4.Invert(invProjMatrix, out invProjMatrix);
+                    invProjMatrix = Matrix4x4.Transpose(invProjMatrix);
+                    Matrix4x4.Invert(invViewProjMatrix, out invViewProjMatrix);
+                    invViewProjMatrix = Matrix4x4.Transpose(invViewProjMatrix);
 
                     Matrix4x3[] normalBasisTransforms = new Matrix4x3[6]
                     {
@@ -2852,20 +2866,20 @@ namespace Frosty.Core.Screens
                 new Matrix4x3(new float[] { -1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0 })
             };
 
-            Matrix viewMatrix = camera.GetViewMatrix();
-            viewMatrix.Transpose();
-            Matrix projMatrix = camera.GetProjMatrix();
-            projMatrix.Transpose();
-            Matrix viewProjMatrix = camera.GetViewProjMatrix();
-            viewProjMatrix.Transpose();
-            Matrix crViewProjMatrix = camera.GetCrViewProjMatrix();
+            Matrix4x4 viewMatrix = camera.GetViewMatrix();
+            viewMatrix = Matrix4x4.Transpose(viewMatrix);
+            Matrix4x4 projMatrix = camera.GetProjMatrix();
+            projMatrix = Matrix4x4.Transpose(projMatrix);
+            Matrix4x4 viewProjMatrix = camera.GetViewProjMatrix();
+            viewProjMatrix = Matrix4x4.Transpose(viewProjMatrix);
+            Matrix4x4 crViewProjMatrix = camera.GetCrViewProjMatrix();
             if (bJitter)
             {
                 GFSDK_TXAA.GetJitter(out float[] jitter);
 
                 crViewProjMatrix = camera.GetCrViewProjMatrix(jitter);
             }
-            crViewProjMatrix.Transpose();
+            crViewProjMatrix = Matrix4x4.Transpose(crViewProjMatrix);
 
             viewConstants.UpdateData(Viewport.Context, new ViewConstants()
             {
@@ -3034,32 +3048,32 @@ namespace Frosty.Core.Screens
             if (DistantLightProbe == null)
                 return;
 
-            SharpDX.Mathematics.Interop.RawViewportF[] origViewports = Viewport.Context.Rasterizer.GetViewports<SharpDX.Mathematics.Interop.RawViewportF>();
+            Vortice.Mathematics.Viewport[] origViewports = Viewport.Context.RSGetViewports<Vortice.Mathematics.Viewport>().ToArray();
 
             D3DUtils.BeginPerfEvent(Viewport.Context, "Spherical Harmonics");
             {
-                PixelShader ps = FrostyShaderDb.GetShader<PixelShader>(Viewport.Device, "ResolveCubeMapFace");
+                ID3D11PixelShader ps = FrostyShaderDb.GetShader<ID3D11PixelShader>(Viewport.Device, "ResolveCubeMapFace");
 
                 Texture2DDescription desc = new Texture2DDescription()
                 {
                     ArraySize = 1,
                     BindFlags = BindFlags.RenderTarget,
-                    CpuAccessFlags = CpuAccessFlags.None,
-                    Format = SharpDX.DXGI.Format.R16G16B16A16_Float,
+                    CPUAccessFlags = CpuAccessFlags.None,
+                    Format = Format.R16G16B16A16_Float,
                     Height = preintegratedSLDTexture.Texture.Description.Height,
                     MipLevels = 1,
-                    OptionFlags = ResourceOptionFlags.None,
-                    SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                    MiscFlags = ResourceOptionFlags.None,
+                    SampleDescription = new SampleDescription(1, 0),
                     Usage = ResourceUsage.Default,
                     Width = preintegratedSLDTexture.Texture.Description.Width
                 };
 
-                Texture2D tmpTexture = new Texture2D(Viewport.Device, desc);
-                desc.CpuAccessFlags = CpuAccessFlags.Read;
+                ID3D11Texture2D tmpTexture = Viewport.Device.CreateTexture2D(desc);
+                desc.CPUAccessFlags = CpuAccessFlags.Read;
                 desc.BindFlags = BindFlags.None;
                 desc.Usage = ResourceUsage.Staging;
-                Texture2D resolveTexture = new Texture2D(Viewport.Device, desc);
-                RenderTargetView tmpRtv = new RenderTargetView(Viewport.Device, tmpTexture);
+                ID3D11Texture2D resolveTexture = Viewport.Device.CreateTexture2D(desc);
+                ID3D11RenderTargetView tmpRtv = Viewport.Device.CreateRenderTargetView(tmpTexture);
 
                 float[] resultR = new float[9];
                 float[] resultG = new float[9];
@@ -3072,31 +3086,33 @@ namespace Frosty.Core.Screens
                     cubeMapConstants.UpdateData(Viewport.Context, new CubeMapConstants() { CubeFace = i });
 
                     // render out cubemap face
-                    Viewport.Context.OutputMerger.SetRenderTargets(null, tmpRtv);
-                    Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, desc.Width, desc.Height));
-                    Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                    Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                    Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                    Viewport.Context.OMSetRenderTargets(tmpRtv, null);
+                    Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, desc.Width, desc.Height));
+                    Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                    Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                    Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                    Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                    Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                    Viewport.Context.InputAssembler.InputLayout = null;
+                    Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                    Viewport.Context.IASetVertexBuffer(0, null, 0);
+                    Viewport.Context.IASetInputLayout(null);
 
-                    Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                    Viewport.Context.PixelShader.Set(ps);
-                    Viewport.Context.PixelShader.SetConstantBuffer(0, cubeMapConstants.Buffer);
-                    Viewport.Context.PixelShader.SetShaderResource(0, preintegratedSLDTexture.SRV);
-                    Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                    Viewport.Context.VSSetShader(vsFullscreenQuad);
+                    Viewport.Context.PSSetShader(ps);
+                    Viewport.Context.PSSetConstantBuffer(0, cubeMapConstants.Buffer);
+                    Viewport.Context.PSSetShaderResource(0, preintegratedSLDTexture.SRV);
+                    Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
                     Viewport.Context.Draw(6, 0);
 
                     // resolve to staging
-                    Viewport.Context.OutputMerger.SetRenderTargets(null, new RenderTargetView[] { });
-                    Viewport.Context.CopyResource(tmpTexture, resolveTexture);
+                    Viewport.Context.OMSetRenderTargets(new ID3D11RenderTargetView[] { }, null);
+                    Viewport.Context.CopyResource(resolveTexture, tmpTexture);
 
                     // read staging texture
-                    Viewport.Context.MapSubresource(resolveTexture, 0, MapMode.Read, MapFlags.None, out DataStream stream);
+                    Viewport.Context.Map(resolveTexture, 0 /* subresource (0) % mipLevels */, 0 /* subresource (0) / mipLevels */, MapMode.Read, Vortice.Direct3D11.MapFlags.None, out uint mipSize, out MappedSubresource mappedResource);
                     {
+                        using Vortice.DataStream stream = new(mappedResource.DataPointer, mipSize * mappedResource.RowPitch, true, true);
+
                         float invWidth = 1.0f / preintegratedSLDTexture.Texture.Description.Width;
                         float negativeBound = -1.0f + invWidth;
                         float invWidthBy2 = 2.0f / preintegratedSLDTexture.Texture.Description.Width;
@@ -3147,7 +3163,7 @@ namespace Frosty.Core.Screens
                                         break;
                                 }
 
-                                dir.Normalize();
+                                dir = Vector3.Normalize(dir);
                                 float diffSolid = 4.0f / ((1.0f + fU * fU + fV * fV) * (float)Math.Sqrt(1.0f + fU * fU + fV * fV));
                                 float[] sh = SphericalHarmonicsHelper.shEvaluateDir(dir);
 
@@ -3169,7 +3185,7 @@ namespace Frosty.Core.Screens
                             }
                         }
                     }
-                    Viewport.Context.UnmapSubresource(resolveTexture, 0);
+                    Viewport.Context.Unmap(resolveTexture, 0);
                 }
 
                 float normProj = (4.0f * (float)Math.PI) / weight;
@@ -3187,7 +3203,7 @@ namespace Frosty.Core.Screens
             }
             D3DUtils.EndPerfEvent(Viewport.Context);
 
-            Viewport.Context.Rasterizer.SetViewports(origViewports);
+            Viewport.Context.RSSetViewports(origViewports);
         }
 
         /// <summary>
@@ -3195,24 +3211,24 @@ namespace Frosty.Core.Screens
         /// </summary>
         protected virtual void PreintegrateIBL()
         {
-            SharpDX.Mathematics.Interop.RawViewportF[] origViewports = Viewport.Context.Rasterizer.GetViewports<SharpDX.Mathematics.Interop.RawViewportF>();
+            Vortice.Mathematics.Viewport[] origViewports = Viewport.Context.RSGetViewports<Vortice.Mathematics.Viewport>().ToArray();
 
             D3DUtils.BeginPerfEvent(Viewport.Context, "Preintegrate DFG");
             {
                 preintegratedDFGTexture.Clear(Viewport.Context, new Color4(0, 0, 0, 0));
 
-                Viewport.Context.OutputMerger.SetRenderTargets(null, preintegratedDFGTexture.RTV);
-                Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, preintegratedDFGTexture.Texture.Description.Width, preintegratedDFGTexture.Texture.Description.Height));
-                Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                Viewport.Context.OMSetRenderTargets(preintegratedDFGTexture.RTV, null);
+                Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, preintegratedDFGTexture.Texture.Description.Width, preintegratedDFGTexture.Texture.Description.Height));
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                Viewport.Context.InputAssembler.InputLayout = null;
+                Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                Viewport.Context.IASetVertexBuffer(0, null, 0);
+                Viewport.Context.IASetInputLayout(null);
 
-                Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                Viewport.Context.PixelShader.Set(psIntegrateDFG);
+                Viewport.Context.VSSetShader(vsFullscreenQuad);
+                Viewport.Context.PSSetShader(psIntegrateDFG);
 
                 Viewport.Context.Draw(6, 0);
             }
@@ -3227,21 +3243,21 @@ namespace Frosty.Core.Screens
                         cubeMapConstants.UpdateData(Viewport.Context, new CubeMapConstants() { CubeFace = i });
                         preintegratedDLDTexture.Clear(Viewport.Context, i, 0, new Color4(0, 0, 0, 0));
 
-                        Viewport.Context.OutputMerger.SetRenderTargets(null, preintegratedDLDTexture.GetRTV(i, 0));
-                        Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, preintegratedDLDTexture.Texture.Description.Width, preintegratedDLDTexture.Texture.Description.Height));
-                        Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                        Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                        Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                        Viewport.Context.OMSetRenderTargets(preintegratedDLDTexture.GetRTV(i, 0), null);
+                        Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, preintegratedDLDTexture.Texture.Description.Width, preintegratedDLDTexture.Texture.Description.Height));
+                        Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                        Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                        Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                        Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                        Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                        Viewport.Context.InputAssembler.InputLayout = null;
+                        Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                        Viewport.Context.IASetVertexBuffer(0, null, 0);
+                        Viewport.Context.IASetInputLayout(null);
 
-                        Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                        Viewport.Context.PixelShader.Set(psIntegrateDiffuseLD);
-                        Viewport.Context.PixelShader.SetConstantBuffers(0, cubeMapConstants.Buffer);
-                        Viewport.Context.PixelShader.SetShaderResources(0, DistantLightProbe);
-                        Viewport.Context.PixelShader.SetSamplers(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                        Viewport.Context.VSSetShader(vsFullscreenQuad);
+                        Viewport.Context.PSSetShader(psIntegrateDiffuseLD);
+                        Viewport.Context.PSSetConstantBuffer(0, cubeMapConstants.Buffer);
+                        Viewport.Context.PSSetShaderResource(0, DistantLightProbe);
+                        Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
                         Viewport.Context.Draw(6, 0);
                     }
@@ -3260,21 +3276,21 @@ namespace Frosty.Core.Screens
                             cubeMapConstants.UpdateData(Viewport.Context, new CubeMapConstants() { CubeFace = i, MipIndex = (uint)mipIdx, NumMips = 9 });
                             preintegratedSLDTexture.Clear(Viewport.Context, i, mipIdx, new Color4(0, 0, 0, 0));
 
-                            Viewport.Context.OutputMerger.SetRenderTargets(null, preintegratedSLDTexture.GetRTV(i, mipIdx));
-                            Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, preintegratedSLDTexture.Texture.Description.Width >> mipIdx, preintegratedSLDTexture.Texture.Description.Height >> mipIdx));
-                            Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                            Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                            Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                            Viewport.Context.OMSetRenderTargets(preintegratedSLDTexture.GetRTV(i, mipIdx), null);
+                            Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, preintegratedSLDTexture.Texture.Description.Width >> mipIdx, preintegratedSLDTexture.Texture.Description.Height >> mipIdx));
+                            Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                            Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                            Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                            Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                            Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                            Viewport.Context.InputAssembler.InputLayout = null;
+                            Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                            Viewport.Context.IASetVertexBuffer(0, null, 0);
+                            Viewport.Context.IASetInputLayout(null);
 
-                            Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                            Viewport.Context.PixelShader.Set(psIntegrateSpecularLD);
-                            Viewport.Context.PixelShader.SetConstantBuffers(0, cubeMapConstants.Buffer);
-                            Viewport.Context.PixelShader.SetShaderResources(0, DistantLightProbe);
-                            Viewport.Context.PixelShader.SetSamplers(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                            Viewport.Context.VSSetShader(vsFullscreenQuad);
+                            Viewport.Context.PSSetShader(psIntegrateSpecularLD);
+                            Viewport.Context.PSSetConstantBuffer(0, cubeMapConstants.Buffer);
+                            Viewport.Context.PSSetShaderResource(0, DistantLightProbe);
+                            Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
                             Viewport.Context.Draw(6, 0);
                         }
@@ -3283,7 +3299,7 @@ namespace Frosty.Core.Screens
                 D3DUtils.EndPerfEvent(Viewport.Context);
             }
 
-            Viewport.Context.Rasterizer.SetViewports(origViewports);
+            Viewport.Context.RSSetViewports(origViewports);
         }
 
         /// <summary>
@@ -3293,18 +3309,18 @@ namespace Frosty.Core.Screens
         {
             D3DUtils.BeginPerfEvent(Viewport.Context, "ClearTargets");
             {
-                Viewport.Context.ClearRenderTargetView(Viewport.ColorBufferRTV, Color4.Black);
+                Viewport.Context.ClearRenderTargetView(Viewport.ColorBufferRTV, Colors.Black);
                 Viewport.Context.ClearDepthStencilView(Viewport.DepthBufferDSV, DepthStencilClearFlags.Depth | DepthStencilClearFlags.Stencil, 1.0f, 0);
 
                 editorCompositeDepthTexture.Clear(Viewport.Context, true, true, 1.0f, 0);
                 selectionDepthTexture.Clear(Viewport.Context, true, true, 1.0f, 0);
 
                 gBufferCollection.Clear(Viewport.Context);
-                lightAccumulationTexture.Clear(Viewport.Context, Color4.Black);
-                finalColorTexture.Clear(Viewport.Context, Color4.Black);
-                editorCompositeTexture.Clear(Viewport.Context, Color4.Black);
-                scaledSceneTexture.Clear(Viewport.Context, Color4.Black);
-                worldNormalsForHBAOTexture.Clear(Viewport.Context, Color4.Black);
+                lightAccumulationTexture.Clear(Viewport.Context, Colors.Black);
+                finalColorTexture.Clear(Viewport.Context, Colors.Black);
+                editorCompositeTexture.Clear(Viewport.Context, Colors.Black);
+                scaledSceneTexture.Clear(Viewport.Context, Colors.Black);
+                worldNormalsForHBAOTexture.Clear(Viewport.Context, Colors.Black);
             }
             D3DUtils.EndPerfEvent(Viewport.Context);
         }
@@ -3314,45 +3330,38 @@ namespace Frosty.Core.Screens
         /// </summary>
         protected virtual void RenderBasePass()
         {
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.BeginPerfEvent(Viewport.Context, "BasePass");
-#endif
+            D3DUtils.BeginPerfEvent(Viewport.Context, "BasePass");
             {
-                var context = Viewport.Context;
+                Viewport.Context.OMSetRenderTargets(gBufferCollection.GBufferRTVs, Viewport.DepthBufferDSV);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(depthComparison: ComparisonFunction.LessEqual));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.Front, depthClip: true, fillMode: (RenderMode == DebugRenderMode.Wireframe) ? FillMode.Wireframe : FillMode.Solid));
 
-                context.OutputMerger.SetRenderTargets(Viewport.DepthBufferDSV, gBufferCollection.GBufferRTVs);
-                context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(depthComparison: Comparison.LessEqual);
-                context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.Front, depthClip: true, fillMode: (RenderMode == DebugRenderMode.Wireframe) ? FillMode.Wireframe : FillMode.Solid);
+                Viewport.Context.VSSetConstantBuffer(0, viewConstants.Buffer);
 
-                context.VertexShader.SetConstantBuffer(0, viewConstants.Buffer);
-
-                context.PixelShader.SetConstantBuffer(0, viewConstants.Buffer);
-                context.PixelShader.SetShaderResource(0, normalBasisCubemapTexture.SRV);
-                context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                Viewport.Context.PSSetConstantBuffer(0, viewConstants.Buffer);
+                Viewport.Context.PSSetShaderResource(0, normalBasisCubemapTexture.SRV);
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
                 RenderMeshes(MeshRenderPath.Deferred, meshes);
             }
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.EndPerfEvent(Viewport.Context);
-#endif
+            D3DUtils.EndPerfEvent(Viewport.Context);
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
         protected virtual void RenderShadows()
         {
             if (!ShadowsEnabled)
                 return;
 
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.BeginPerfEvent(Viewport.Context, "Shadows");
-#endif
+            D3DUtils.BeginPerfEvent(Viewport.Context, "Shadows");
             {
                 BoundingBox aabb = CalcWorldBoundingBox();
 
                 // account for the floor mesh
-                aabb = BoundingBox.Merge(aabb, new BoundingBox(new Vector3(-4, -1, -4), new Vector3(4, 1, 4)));
-
-                var context = Viewport.Context;
+                aabb = BoundingBox.CreateMerged(aabb, new BoundingBox(new Vector3(-4, -1, -4), new Vector3(4, 1, 4)));
 
                 // shadow pass
                 GFSDK_ShadowLib.MapRenderParams renderParams = new GFSDK_ShadowLib.MapRenderParams(true)
@@ -3373,8 +3382,8 @@ namespace Frosty.Core.Screens
 
                     m4x4EyeViewMatrix = GFSDK_ShadowLib.Matrix.FromSharpDX(camera.GetViewMatrix()),
                     m4x4EyeProjectionMatrix = GFSDK_ShadowLib.Matrix.FromSharpDX(camera.GetProjMatrix()),
-                    v3WorldSpaceBBox_1 = aabb.Minimum * 1.05f,
-                    v3WorldSpaceBBox_2 = aabb.Maximum * 1.05f,
+                    v3WorldSpaceBBox_1 = aabb.Min * 1.05f,
+                    v3WorldSpaceBBox_2 = aabb.Max * 1.05f,
                     eCullModeType = GFSDK_ShadowLib.CullModeType.Front,
                     eTechniqueType = GFSDK_ShadowLib.TechniqueType.PCF,
                     eCascadedShadowMapType = GFSDK_ShadowLib.CascadedShadowMapType.SampleDistribution,
@@ -3426,6 +3435,8 @@ namespace Frosty.Core.Screens
                     }
                 };
 
+                //renderParams.DepthBufferDesc.ReadOnlyDSV = todo
+
                 int retVal = shadowContext.SetMapRenderParams(shadowMapHandle, renderParams);
                 retVal = shadowContext.UpdateMapBounds(shadowMapHandle, out GFSDK_ShadowLib.Matrix[] lightViewMatrices, out GFSDK_ShadowLib.Matrix[] lightProjMatrices, out GFSDK_ShadowLib.Frustum[] renderFrustums);
 
@@ -3433,12 +3444,12 @@ namespace Frosty.Core.Screens
 
                 for (uint uView = 0; uView < GFSDK_ShadowLib.NumCSMLevels; uView++)
                 {
-                    Matrix viewMatrix = lightViewMatrices[uView].ToSharpDX();
-                    Matrix projMatrix = lightProjMatrices[uView].ToSharpDX();
-                    Matrix viewProjMatrix = viewMatrix * projMatrix;
-                    viewProjMatrix.Transpose();
+                    Matrix4x4 viewMatrix = lightViewMatrices[uView].ToSharpDX();
+                    Matrix4x4 projMatrix = lightProjMatrices[uView].ToSharpDX();
+                    Matrix4x4 viewProjMatrix = viewMatrix * projMatrix;
+                    viewProjMatrix = Matrix4x4.Transpose(viewProjMatrix);
 
-                    viewConstants.UpdateData(context, new ViewConstants()
+                    viewConstants.UpdateData(Viewport.Context, new ViewConstants()
                     {
                         CrViewProjMatrix = viewProjMatrix,
                     });
@@ -3451,62 +3462,53 @@ namespace Frosty.Core.Screens
                 shadowContext.RenderBuffer(shadowMapHandle, shadowBufferHandle, new GFSDK_ShadowLib.BufferRenderParams());
                 retVal = shadowContext.FinalizeBuffer(shadowBufferHandle, ref shadowSRV);
             }
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.EndPerfEvent(Viewport.Context);
-#endif
+            D3DUtils.EndPerfEvent(Viewport.Context);
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
         protected virtual void RenderMeshes(MeshRenderPath renderPath, List<MeshRenderInstance> meshList)
         {
-            int meshCount = meshList.Count;
-            if (meshCount == 0)
-                return;
-
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.BeginPerfEvent(Viewport.Context, "RenderMeshes");
-#endif
+            D3DUtils.BeginPerfEvent(Viewport.Context, "RenderMeshes");
             {
-                var context = Viewport.Context;
-                var vs = context.VertexShader;
-                var ps = context.PixelShader;
-
-                // Cache reference to simplify loop internals
-                var probe0 = SHLightProbe[0]; var probe1 = SHLightProbe[1]; var probe2 = SHLightProbe[2];
-                var probe3 = SHLightProbe[3]; var probe4 = SHLightProbe[4]; var probe5 = SHLightProbe[5];
-                var probe6 = SHLightProbe[6]; var probe7 = SHLightProbe[7]; var probe8 = SHLightProbe[8];
-
-                // Use standard index loop to stop enumerator heap allocations
-                for (int i = 0; i < meshCount; i++)
+                RasterizerDescription desc = Viewport.Context.RSGetState().Description;
+                foreach (MeshRenderInstance mesh in meshList)
                 {
-                    MeshRenderInstance mesh = meshList[i];
+                    D3DUtils.BeginPerfEvent(Viewport.Context, mesh.RenderMesh.DebugName);
+                    {
+                        Matrix4x4 transform = mesh.Transform;
+                        transform = Matrix4x4.Transpose(transform);
 
-                    Matrix transform = mesh.Transform;
-                    transform.Transpose();
+                        functionConstants.UpdateData(Viewport.Context, new FunctionConstants()
+                        {
+                            WorldMatrix = Matrix4x4.CreateScale(-1, 1, 1) * transform,
+                            LightProbe1 = SHLightProbe[0],
+                            LightProbe2 = SHLightProbe[1],
+                            LightProbe3 = SHLightProbe[2],
+                            LightProbe4 = SHLightProbe[3],
+                            LightProbe5 = SHLightProbe[4],
+                            LightProbe6 = SHLightProbe[5],
+                            LightProbe7 = SHLightProbe[6],
+                            LightProbe8 = SHLightProbe[7],
+                            LightProbe9 = SHLightProbe[8],
+                        });
 
-                    // Direct struct instantiation avoids multi-step copy overhead
-                    FunctionConstants constants;
-                    constants.WorldMatrix = Matrix.Scaling(-1, 1, 1) * transform;
-                    constants.LightProbe1 = probe0;
-                    constants.LightProbe2 = probe1;
-                    constants.LightProbe3 = probe2;
-                    constants.LightProbe4 = probe3;
-                    constants.LightProbe5 = probe4;
-                    constants.LightProbe6 = probe5;
-                    constants.LightProbe7 = probe6;
-                    constants.LightProbe8 = probe7;
-                    constants.LightProbe9 = probe8;
+                        Viewport.Context.VSSetConstantBuffer(1, functionConstants.Buffer);
+                        Viewport.Context.PSSetConstantBuffer(1, functionConstants.Buffer);
 
-                    functionConstants.UpdateData(context, constants);
+                        mesh.RenderMesh.Render(Viewport.Context, renderPath);
 
-                    vs.SetConstantBuffer(1, functionConstants.Buffer);
-                    ps.SetConstantBuffer(1, functionConstants.Buffer);
-
-                    mesh.RenderMesh.Render(context, renderPath);
+                        //if (renderPath == MeshRenderPath.Shadows)
+                        //{
+                        //    foreach (MeshRenderSection section in mesh.Lod.Sections)
+                        //        shadowContext.IncrementMapPrimitiveCounter(shadowMapHandle, GFSDK_ShadowLib.MapRenderType.Depth, (uint)section.PrimitiveCount);
+                        //}
+                    }
+                    D3DUtils.EndPerfEvent(Viewport.Context);
                 }
             }
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.EndPerfEvent(Viewport.Context);
-#endif
+            D3DUtils.EndPerfEvent(Viewport.Context);
         }
 
         /// <summary>
@@ -3514,63 +3516,55 @@ namespace Frosty.Core.Screens
         /// </summary>
         private void RenderLights()
         {
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.BeginPerfEvent(Viewport.Context, "Lights");
-#endif
+            D3DUtils.BeginPerfEvent(Viewport.Context, "Lights");
             {
-                var context = Viewport.Context;
+                Viewport.Context.OMSetRenderTargets(lightAccumulationTexture.RTV, null);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(new RenderTargetBlendDescription() { BlendEnable = true, SourceBlend = Blend.One, DestinationBlend = Blend.One, BlendOperation = BlendOperation.Add, SourceBlendAlpha = Blend.One, DestinationBlendAlpha = Blend.One, BlendOperationAlpha = BlendOperation.Add, RenderTargetWriteMask = ColorWriteEnable.All }));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                context.OutputMerger.SetRenderTargets(null, lightAccumulationTexture.RTV);
-                context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                context.OutputMerger.BlendState = D3DUtils.CreateBlendState(new RenderTargetBlendDescription() { IsBlendEnabled = true, SourceBlend = BlendOption.One, DestinationBlend = BlendOption.One, BlendOperation = BlendOperation.Add, SourceAlphaBlend = BlendOption.One, DestinationAlphaBlend = BlendOption.One, AlphaBlendOperation = BlendOperation.Add, RenderTargetWriteMask = ColorWriteMaskFlags.All });
-                context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                Viewport.Context.IASetVertexBuffer(0, null, 0);
+                Viewport.Context.IASetInputLayout(null);
 
-                context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                context.InputAssembler.InputLayout = null;
+                Viewport.Context.VSSetShader(vsFullscreenQuad);
+                Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                context.VertexShader.Set(vsFullscreenQuad);
-                context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
-
-                context.PixelShader.SetConstantBuffers(0, commonConstants.Buffer, lightConstants.Buffer);
-                context.PixelShader.SetShaderResources(0, gBufferCollection.GBufferSRVs);
-                context.PixelShader.SetShaderResources(4, Viewport.DepthBufferSRV);
+                Viewport.Context.PSSetConstantBuffers(0, new ID3D11Buffer[] { commonConstants.Buffer, lightConstants.Buffer });
+                Viewport.Context.PSSetShaderResources(0, gBufferCollection.GBufferSRVs);
+                Viewport.Context.PSSetShaderResource(4, Viewport.DepthBufferSRV);
 
                 if (SunIntensity > 0)
                 {
-                    lightConstants.UpdateData(context, new LightConstants()
+                    lightConstants.UpdateData(Viewport.Context, new LightConstants()
                     {
                         LightColorAndIntensity = new Vector4(0, 0, 0, SunIntensity),
                         LightPosAndInvSqrRadius = new Vector4(SunPosition * new Vector3(-1, 1, 1), SunAngularRadius)
                     });
 
                     // directional sunlight first
-                    context.PixelShader.SetShaderResources(5, shadowSRV);
-                    context.PixelShader.Set(psSunLight);
-                    context.Draw(6, 0);
+                    Viewport.Context.PSSetShaderResource(5, shadowSRV);
+                    Viewport.Context.PSSetShader(psSunLight);
+                    Viewport.Context.Draw(6, 0);
                 }
 
                 // then all other lights
-                int lightCount = lights.Count;
-                for (int i = 0; i < lightCount; i++)
+                foreach (LightRenderInstance light in lights)
                 {
-                    LightRenderInstance light = lights[i];
                     if (light.Intensity > 0)
                     {
-                        lightConstants.UpdateData(context, new LightConstants()
+                        lightConstants.UpdateData(Viewport.Context, new LightConstants()
                         {
                             LightColorAndIntensity = new Vector4(light.Color, light.Intensity),
-                            LightPosAndInvSqrRadius = new Vector4(light.Transform.TranslationVector * new Vector3(-1, 1, 1), (light.SphereRadius > 0) ? light.SphereRadius : (1.0f / (float)(light.AttenuationRadius * light.AttenuationRadius)))
+                            LightPosAndInvSqrRadius = new Vector4(light.Transform.Translation * new Vector3(-1, 1, 1), (light.SphereRadius > 0) ? light.SphereRadius : (1.0f / (float)(light.AttenuationRadius * light.AttenuationRadius)))
                         });
 
-                        context.PixelShader.Set((light.SphereRadius > 0) ? psSphereLight : psPointLight);
-                        context.Draw(6, 0);
+                        Viewport.Context.PSSetShader((light.SphereRadius > 0) ? psSphereLight : psPointLight);
+                        Viewport.Context.Draw(6, 0);
                     }
                 }
             }
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.EndPerfEvent(Viewport.Context);
-#endif
+            D3DUtils.EndPerfEvent(Viewport.Context);
         }
 
         /// <summary>
@@ -3581,36 +3575,30 @@ namespace Frosty.Core.Screens
             if (DistantLightProbe == null)
                 return;
 
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.BeginPerfEvent(Viewport.Context, "IBL");
-#endif
+            D3DUtils.BeginPerfEvent(Viewport.Context, "IBL");
             {
-                var context = Viewport.Context;
+                Viewport.Context.OMSetRenderTargets(lightAccumulationTexture.RTV, null);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(new RenderTargetBlendDescription() { BlendEnable = true, SourceBlend = Blend.One, DestinationBlend = Blend.One, BlendOperation = BlendOperation.Add, SourceBlendAlpha = Blend.One, DestinationBlendAlpha = Blend.One, BlendOperationAlpha = BlendOperation.Add, RenderTargetWriteMask = ColorWriteEnable.All }));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                context.OutputMerger.SetRenderTargets(null, lightAccumulationTexture.RTV);
-                context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                context.OutputMerger.BlendState = D3DUtils.CreateBlendState(new RenderTargetBlendDescription() { IsBlendEnabled = true, SourceBlend = BlendOption.One, DestinationBlend = BlendOption.One, BlendOperation = BlendOperation.Add, SourceAlphaBlend = BlendOption.One, DestinationAlphaBlend = BlendOption.One, AlphaBlendOperation = BlendOperation.Add, RenderTargetWriteMask = ColorWriteMaskFlags.All });
-                context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                Viewport.Context.IASetVertexBuffer(0, null, 0);
+                Viewport.Context.IASetInputLayout(null);
 
-                context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                context.InputAssembler.InputLayout = null;
+                Viewport.Context.VSSetShader(vsFullscreenQuad);
+                Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                context.VertexShader.Set(vsFullscreenQuad);
-                context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.PSSetShader(psIBLRender);
+                Viewport.Context.PSSetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.PSSetShaderResources(0, gBufferCollection.GBufferSRVs);
+                Viewport.Context.PSSetShaderResources(4, new ID3D11ShaderResourceView[] { Viewport.DepthBufferSRV, preintegratedDFGTexture.SRV, preintegratedDLDTexture.SRV, preintegratedSLDTexture.SRV, DistantLightProbe });
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
+                Viewport.Context.PSSetSampler(1, D3DUtils.CreateSamplerState(address: TextureAddressMode.Wrap, filter: Filter.MinMagMipLinear));
 
-                context.PixelShader.Set(psIBLRender);
-                context.PixelShader.SetConstantBuffers(0, commonConstants.Buffer);
-                context.PixelShader.SetShaderResources(0, gBufferCollection.GBufferSRVs);
-                context.PixelShader.SetShaderResources(4, Viewport.DepthBufferSRV, preintegratedDFGTexture.SRV, preintegratedDLDTexture.SRV, preintegratedSLDTexture.SRV, DistantLightProbe);
-                context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
-                context.PixelShader.SetSampler(1, D3DUtils.CreateSamplerState(address: TextureAddressMode.Wrap, filter: Filter.MinMagMipLinear));
-
-                context.Draw(6, 0);
+                Viewport.Context.Draw(6, 0);
             }
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.EndPerfEvent(Viewport.Context);
-#endif
+            D3DUtils.EndPerfEvent(Viewport.Context);
         }
 
         /// <summary>
@@ -3618,35 +3606,29 @@ namespace Frosty.Core.Screens
         /// </summary>
         private void ResolveNormalsForHBAO()
         {
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.BeginPerfEvent(Viewport.Context, "ResolveNormalsForHBAO");
-#endif
+            D3DUtils.BeginPerfEvent(Viewport.Context, "ResolveNormalsForHBAO");
             {
-                var context = Viewport.Context;
+                Viewport.Context.OMSetRenderTargets(worldNormalsForHBAOTexture.RTV, null);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                context.OutputMerger.SetRenderTargets(null, worldNormalsForHBAOTexture.RTV);
-                context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                Viewport.Context.IASetVertexBuffer(0, null, 0);
+                Viewport.Context.IASetInputLayout(null);
 
-                context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                context.InputAssembler.InputLayout = null;
+                Viewport.Context.VSSetShader(vsFullscreenQuad);
+                Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                context.VertexShader.Set(vsFullscreenQuad);
-                context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.PSSetShader(psResolveWorldNormals);
+                Viewport.Context.PSSetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.PSSetShaderResources(0, gBufferCollection.GBufferSRVs);
+                Viewport.Context.PSSetShaderResource(4, Viewport.DepthBufferSRV);
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
-                context.PixelShader.Set(psResolveWorldNormals);
-                context.PixelShader.SetConstantBuffers(0, commonConstants.Buffer);
-                context.PixelShader.SetShaderResources(0, gBufferCollection.GBufferSRVs);
-                context.PixelShader.SetShaderResources(4, Viewport.DepthBufferSRV);
-                context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
-
-                context.Draw(6, 0);
+                Viewport.Context.Draw(6, 0);
             }
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.EndPerfEvent(Viewport.Context);
-#endif
+            D3DUtils.EndPerfEvent(Viewport.Context);
         }
 
         /// <summary>
@@ -3654,30 +3636,24 @@ namespace Frosty.Core.Screens
         /// </summary>
         private void RenderEmissive()
         {
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.BeginPerfEvent(Viewport.Context, "Emissive");
-#endif
+            D3DUtils.BeginPerfEvent(Viewport.Context, "Emissive");
             {
-                var context = Viewport.Context;
-
                 UpdateViewConstants(true);
 
-                context.OutputMerger.SetRenderTargets(Viewport.DepthBufferDSV, lightAccumulationTexture.RTV);
-                context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(depthComparison: Comparison.LessEqual);
-                context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.Front, depthClip: true);
+                Viewport.Context.OMSetRenderTargets(lightAccumulationTexture.RTV, Viewport.DepthBufferDSV);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(depthComparison: ComparisonFunction.LessEqual));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.Front, depthClip: true));
 
-                context.VertexShader.SetConstantBuffer(0, viewConstants.Buffer);
+                Viewport.Context.VSSetConstantBuffer(0, viewConstants.Buffer);
 
-                context.PixelShader.SetConstantBuffer(0, viewConstants.Buffer);
-                context.PixelShader.SetShaderResource(0, normalBasisCubemapTexture.SRV);
-                context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                Viewport.Context.PSSetConstantBuffer(0, viewConstants.Buffer);
+                Viewport.Context.PSSetShaderResource(0, normalBasisCubemapTexture.SRV);
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
-                RenderMeshes(MeshRenderPath.Deferred, new List<MeshRenderInstance>() { new MeshRenderInstance() { RenderMesh = skySphere, Transform = Matrix.Identity } });
+                RenderMeshes(MeshRenderPath.Deferred, new List<MeshRenderInstance>() { new MeshRenderInstance() { RenderMesh = skySphere, Transform = Matrix4x4.Identity } });
             }
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.EndPerfEvent(Viewport.Context);
-#endif
+            D3DUtils.EndPerfEvent(Viewport.Context);
         }
 
         /// <summary>
@@ -3685,12 +3661,9 @@ namespace Frosty.Core.Screens
         /// </summary>
         private void PostProcess()
         {
-            var context = Viewport.Context;
-            SharpDX.Mathematics.Interop.RawViewportF[] origViewports = context.Rasterizer.GetViewports<SharpDX.Mathematics.Interop.RawViewportF>();
+            Vortice.Mathematics.Viewport[] origViewports = Viewport.Context.RSGetViewports<Vortice.Mathematics.Viewport>().ToArray();
 
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.BeginPerfEvent(Viewport.Context, "PostProcess");
-#endif
+            D3DUtils.BeginPerfEvent(Viewport.Context, "PostProcess");
             {
                 PostProcessCollectSelections();
                 PostProcessEditorPrimitives();
@@ -3703,11 +3676,9 @@ namespace Frosty.Core.Screens
                 PostProcessSelectionOutline();
                 PostProcessEditorComposite();
             }
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.EndPerfEvent(Viewport.Context);
-#endif
+            D3DUtils.EndPerfEvent(Viewport.Context);
 
-            context.Rasterizer.SetViewports(origViewports);
+            Viewport.Context.RSSetViewports(origViewports);
         }
 
         /// <summary>
@@ -3718,44 +3689,38 @@ namespace Frosty.Core.Screens
             if (RenderMode == DebugRenderMode.Default || RenderMode == DebugRenderMode.HBAO)
                 return;
 
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.BeginPerfEvent(Viewport.Context, "DebugRenderMode");
-#endif
+            D3DUtils.BeginPerfEvent(Viewport.Context, "DebugRenderMode");
             {
-                var context = Viewport.Context;
+                Viewport.Context.OMSetRenderTargets(Viewport.ColorBufferRTV, null);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                context.OutputMerger.SetRenderTargets(null, Viewport.ColorBufferRTV);
-                context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                Viewport.Context.IASetVertexBuffer(0, null, 0);
+                Viewport.Context.IASetInputLayout(null);
 
-                context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                context.InputAssembler.InputLayout = null;
+                Viewport.Context.VSSetShader(vsFullscreenQuad);
+                Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                context.VertexShader.Set(vsFullscreenQuad);
-                context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.PSSetShader(psDebugRenderMode);
+                Viewport.Context.PSSetShaderResources(0, gBufferCollection.GBufferSRVs);
+                Viewport.Context.PSSetShaderResource(4, Viewport.DepthBufferSRV);
+                Viewport.Context.PSSetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
-                context.PixelShader.Set(psDebugRenderMode);
-                context.PixelShader.SetShaderResources(0, gBufferCollection.GBufferSRVs);
-                context.PixelShader.SetShaderResources(4, Viewport.DepthBufferSRV);
-                context.PixelShader.SetConstantBuffer(0, commonConstants.Buffer);
-                context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
-
-                context.Draw(6, 0);
+                Viewport.Context.Draw(6, 0);
             }
-#if DEBUG
-            if (EnablePerfMarkers) D3DUtils.EndPerfEvent(Viewport.Context);
-#endif
+            D3DUtils.EndPerfEvent(Viewport.Context);
 
-            Viewport.Context.OutputMerger.SetRenderTargets(null, new RenderTargetView[5]);
+            Viewport.Context.OMSetRenderTargets(new ID3D11RenderTargetView[5], null);
         }
 
         #region -- Post Processing --
         /// <summary>
         /// 
         /// </summary>
-        private void PostProcessTAA()
+        private unsafe void PostProcessTAA()
         {
             if (GFSDK_TXAA.TxaaEnabled)
             {
@@ -3764,41 +3729,32 @@ namespace Frosty.Core.Screens
                     D3DUtils.BeginPerfEvent(Viewport.Context, "CameraMotionVectors");
                     {
                         // TXAA Camera motion vectors
-                        Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(null, 0, 0));
-                        Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
+                        Viewport.Context.IASetVertexBuffer(0, null, 0);
+                        Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
                         txaaMotionVectorsTexture.Clear(Viewport.Context, new Color4(0, 0, 0, 0));
 
-                        Matrix viewProjMatrix = camera.GetViewProjMatrix();
-                        viewProjMatrix.Transpose();
-                        Matrix prevViewProjMatrix = camera.GetPrevViewProjMatrix();
-                        prevViewProjMatrix.Transpose();
-
-                        IntPtr ptr1 = Marshal.AllocHGlobal(64);
-                        IntPtr ptr2 = Marshal.AllocHGlobal(64);
-
-                        Marshal.Copy(viewProjMatrix.ToArray(), 0, ptr1, 4 * 4);
-                        Marshal.Copy(prevViewProjMatrix.ToArray(), 0, ptr2, 4 * 4);
+                        Matrix4x4 viewProjMatrix = camera.GetViewProjMatrix();
+                        viewProjMatrix = Matrix4x4.Transpose(viewProjMatrix);
+                        Matrix4x4 prevViewProjMatrix = camera.GetPrevViewProjMatrix();
+                        prevViewProjMatrix = Matrix4x4.Transpose(prevViewProjMatrix);
 
                         GFSDK_TXAA.MotionVectorParameters mvParams = new GFSDK_TXAA.MotionVectorParameters
                         {
-                            viewProj = ptr1,
-                            prevViewProj = ptr2,
+                            viewProj = (nint)(&viewProjMatrix),
+                            prevViewProj = (nint)(&prevViewProjMatrix),
                             samples = 1
                         };
 
                         IntPtr motionGeneratorVtbl = Marshal.ReadIntPtr(Marshal.ReadIntPtr(txaaMotionVectorGenerator, 0), 0);
                         GFSDK_TXAA.GenerateMotionVectorFunc generateMotionVector = Marshal.GetDelegateForFunctionPointer<GFSDK_TXAA.GenerateMotionVectorFunc>(Marshal.ReadIntPtr(motionGeneratorVtbl, 1 * 8));
                         int retVal = generateMotionVector(Marshal.ReadIntPtr(txaaMotionVectorGenerator), Viewport.Context.NativePointer, txaaMotionVectorsTexture.RTV.NativePointer, Viewport.DepthBufferSRV.NativePointer, mvParams);
-
-                        Marshal.FreeHGlobal(ptr1);
-                        Marshal.FreeHGlobal(ptr2);
                     }
                     D3DUtils.EndPerfEvent(Viewport.Context);
 
                     D3DUtils.BeginPerfEvent(Viewport.Context, "Resolve");
                     {
                         // TXAA Resolve
-                        Viewport.Context.OutputMerger.SetRenderTargets(null, null, null, null, null);
+                        Viewport.Context.OMSetRenderTargets(new ID3D11RenderTargetView[4], null);
 
                         GFSDK_TXAA.NvTxaaFeedbackParameters feedbackParams = GFSDK_TXAA.NvTxaaFeedbackParameters.NvTxaaDefaultFeedback;
                         IntPtr feedbackParamsPtr = Marshal.AllocHGlobal(Marshal.SizeOf<GFSDK_TXAA.NvTxaaFeedbackParameters>());
@@ -3849,7 +3805,7 @@ namespace Frosty.Core.Screens
                         Marshal.StructureToPtr<GFSDK_TXAA.NvTxaaMotionDX11>(mParams, mParamsPtr, true);
 
                         int retCode = GFSDK_TXAA.ResolveFromMotionVectors(resolveParamsPtr, mParamsPtr);
-                        Viewport.Context.CopyResource(postProcessTexture.Texture, txaaFeedbackTeture.Texture);
+                        Viewport.Context.CopyResource(txaaFeedbackTeture.Texture, postProcessTexture.Texture);
 
                         Marshal.FreeHGlobal(mParamsPtr);
                         Marshal.FreeHGlobal(resolveParamsPtr);
@@ -3864,7 +3820,7 @@ namespace Frosty.Core.Screens
             {
                 D3DUtils.BeginPerfEvent(Viewport.Context, "Resolve");
                 {
-                    Viewport.Context.CopyResource(lightAccumulationTexture.Texture, postProcessTexture.Texture);
+                    Viewport.Context.CopyResource(postProcessTexture.Texture, lightAccumulationTexture.Texture);
                 }
                 D3DUtils.EndPerfEvent(Viewport.Context);
             }
@@ -3877,8 +3833,10 @@ namespace Frosty.Core.Screens
         {
             D3DUtils.BeginPerfEvent(Viewport.Context, "Downscale4x4");
             {
-                Viewport.Context.MapSubresource(postProcessConstants, 0, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+                Viewport.Context.Map(postProcessConstants, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mappedResource);
                 {
+                    using Vortice.DataStream stream = new(mappedResource.DataPointer, postProcessConstants.Description.ByteWidth, true, true);
+
                     float tU = 1.0f / (postProcessTexture.Texture.Description.Width);
                     float tV = 1.0f / (postProcessTexture.Texture.Description.Height);
 
@@ -3892,25 +3850,25 @@ namespace Frosty.Core.Screens
                         }
                     }
                 }
-                Viewport.Context.UnmapSubresource(postProcessConstants, 0);
+                Viewport.Context.Unmap(postProcessConstants, 0);
 
-                Viewport.Context.OutputMerger.SetRenderTargets(null, scaledSceneTexture.RTV);
-                Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
-                Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, scaledSceneTexture.Texture.Description.Width, scaledSceneTexture.Texture.Description.Height));
+                Viewport.Context.OMSetRenderTargets(scaledSceneTexture.RTV, null);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
+                Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, scaledSceneTexture.Texture.Description.Width, scaledSceneTexture.Texture.Description.Height));
 
-                Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                Viewport.Context.InputAssembler.InputLayout = null;
+                Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                Viewport.Context.IASetVertexBuffer(0, null, 0);
+                Viewport.Context.IASetInputLayout(null);
 
-                Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.VSSetShader(vsFullscreenQuad);
+                Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                Viewport.Context.PixelShader.Set(psDownscale4x4);
-                Viewport.Context.PixelShader.SetShaderResources(0, postProcessTexture.SRV);
-                Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
-                Viewport.Context.PixelShader.SetConstantBuffer(1, postProcessConstants);
+                Viewport.Context.PSSetShader(psDownscale4x4);
+                Viewport.Context.PSSetShaderResource(0, postProcessTexture.SRV);
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                Viewport.Context.PSSetConstantBuffer(1, postProcessConstants);
 
                 Viewport.Context.Draw(6, 0);
             }
@@ -3927,8 +3885,10 @@ namespace Frosty.Core.Screens
             D3DUtils.BeginPerfEvent(Viewport.Context, "SampleLuminanceInitial");
             {
                 // first pass
-                Viewport.Context.MapSubresource(postProcessConstants, 0, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+                Viewport.Context.Map(postProcessConstants, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mappedResource);
                 {
+                    using Vortice.DataStream stream = new(mappedResource.DataPointer, postProcessConstants.Description.ByteWidth, true, true);
+
                     float tU = 1.0f / (3.0f * toneMapTextures[curTexture].Texture.Description.Width);
                     float tV = 1.0f / (3.0f * toneMapTextures[curTexture].Texture.Description.Height);
 
@@ -3942,26 +3902,26 @@ namespace Frosty.Core.Screens
                         }
                     }
                 }
-                Viewport.Context.UnmapSubresource(postProcessConstants, 0);
+                Viewport.Context.Unmap(postProcessConstants, 0);
 
                 toneMapTextures[curTexture].Clear(Viewport.Context, new Color4(0, 0, 0, 0));
-                Viewport.Context.OutputMerger.SetRenderTargets(null, toneMapTextures[curTexture].RTV);
-                Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
-                Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, toneMapTextures[curTexture].Texture.Description.Width, toneMapTextures[curTexture].Texture.Description.Height));
+                Viewport.Context.OMSetRenderTargets(toneMapTextures[curTexture].RTV, null);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
+                Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, toneMapTextures[curTexture].Texture.Description.Width, toneMapTextures[curTexture].Texture.Description.Height));
 
-                Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                Viewport.Context.InputAssembler.InputLayout = null;
+                Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                Viewport.Context.IASetVertexBuffer(0, null, 0);
+                Viewport.Context.IASetInputLayout(null);
 
-                Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.VSSetShader(vsFullscreenQuad);
+                Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                Viewport.Context.PixelShader.Set(psSampleLumInitial);
-                Viewport.Context.PixelShader.SetShaderResources(0, scaledSceneTexture.SRV, toneMapTextures[5].SRV);
-                Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
-                Viewport.Context.PixelShader.SetConstantBuffers(0, commonConstants.Buffer, postProcessConstants);
+                Viewport.Context.PSSetShader(psSampleLumInitial);
+                Viewport.Context.PSSetShaderResources(0, new ID3D11ShaderResourceView[] { scaledSceneTexture.SRV, toneMapTextures[5].SRV });
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                Viewport.Context.PSSetConstantBuffers(0, new ID3D11Buffer[] { commonConstants.Buffer, postProcessConstants });
 
                 Viewport.Context.Draw(6, 0);
                 curTexture--;
@@ -3973,8 +3933,10 @@ namespace Frosty.Core.Screens
                 // iterative downscale
                 while (curTexture > 0)
                 {
-                    Viewport.Context.MapSubresource(postProcessConstants, 0, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+                    Viewport.Context.Map(postProcessConstants, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mappedResource);
                     {
+                        using Vortice.DataStream stream = new(mappedResource.DataPointer, postProcessConstants.Description.ByteWidth, true, true);
+
                         float tU = 1.0f / (toneMapTextures[curTexture + 1].Texture.Description.Width);
                         float tV = 1.0f / (toneMapTextures[curTexture + 1].Texture.Description.Height);
 
@@ -3988,26 +3950,26 @@ namespace Frosty.Core.Screens
                             }
                         }
                     }
-                    Viewport.Context.UnmapSubresource(postProcessConstants, 0);
+                    Viewport.Context.Unmap(postProcessConstants, 0);
 
                     toneMapTextures[curTexture].Clear(Viewport.Context, new Color4(0, 0, 0, 0));
-                    Viewport.Context.OutputMerger.SetRenderTargets(null, toneMapTextures[curTexture].RTV);
-                    Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                    Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                    Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
-                    Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, toneMapTextures[curTexture].Texture.Description.Width, toneMapTextures[curTexture].Texture.Description.Height));
+                    Viewport.Context.OMSetRenderTargets(toneMapTextures[curTexture].RTV, null);
+                    Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                    Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                    Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
+                    Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, toneMapTextures[curTexture].Texture.Description.Width, toneMapTextures[curTexture].Texture.Description.Height));
 
-                    Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                    Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                    Viewport.Context.InputAssembler.InputLayout = null;
+                    Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                    Viewport.Context.IASetVertexBuffer(0, null, 0);
+                    Viewport.Context.IASetInputLayout(null);
 
-                    Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                    Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                    Viewport.Context.VSSetShader(vsFullscreenQuad);
+                    Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                    Viewport.Context.PixelShader.Set(psSampleLumIterative);
-                    Viewport.Context.PixelShader.SetShaderResources(1, toneMapTextures[curTexture + 1].SRV);
-                    Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
-                    Viewport.Context.PixelShader.SetConstantBuffer(1, postProcessConstants);
+                    Viewport.Context.PSSetShader(psSampleLumIterative);
+                    Viewport.Context.PSSetShaderResource(1, toneMapTextures[curTexture + 1].SRV);
+                    Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                    Viewport.Context.PSSetConstantBuffer(1, postProcessConstants);
 
                     Viewport.Context.Draw(6, 0);
                     curTexture--;
@@ -4018,8 +3980,10 @@ namespace Frosty.Core.Screens
             D3DUtils.BeginPerfEvent(Viewport.Context, "SampleLuminanceFinal");
             {
                 // downscale 1x1
-                Viewport.Context.MapSubresource(postProcessConstants, 0, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+                Viewport.Context.Map(postProcessConstants, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mappedResource);
                 {
+                    using Vortice.DataStream stream = new(mappedResource.DataPointer, postProcessConstants.Description.ByteWidth, true, true);
+
                     float tU = 1.0f / (toneMapTextures[1].Texture.Description.Width);
                     float tV = 1.0f / (toneMapTextures[1].Texture.Description.Height);
 
@@ -4033,26 +3997,26 @@ namespace Frosty.Core.Screens
                         }
                     }
                 }
-                Viewport.Context.UnmapSubresource(postProcessConstants, 0);
+                Viewport.Context.Unmap(postProcessConstants, 0);
 
                 toneMapTextures[0].Clear(Viewport.Context, new Color4(0, 0, 0, 0));
-                Viewport.Context.OutputMerger.SetRenderTargets(null, toneMapTextures[0].RTV);
-                Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
-                Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, toneMapTextures[0].Texture.Description.Width, toneMapTextures[0].Texture.Description.Height));
+                Viewport.Context.OMSetRenderTargets(toneMapTextures[0].RTV, null);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
+                Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, toneMapTextures[0].Texture.Description.Width, toneMapTextures[0].Texture.Description.Height));
 
-                Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                Viewport.Context.InputAssembler.InputLayout = null;
+                Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                Viewport.Context.IASetVertexBuffer(0, null, 0);
+                Viewport.Context.IASetInputLayout(null);
 
-                Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.VSSetShader(vsFullscreenQuad);
+                Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                Viewport.Context.PixelShader.Set(psSampleLumFinal);
-                Viewport.Context.PixelShader.SetShaderResources(1, toneMapTextures[1].SRV);
-                Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
-                Viewport.Context.PixelShader.SetConstantBuffer(1, postProcessConstants);
+                Viewport.Context.PSSetShader(psSampleLumFinal);
+                Viewport.Context.PSSetShaderResource(1, toneMapTextures[1].SRV);
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                Viewport.Context.PSSetConstantBuffer(1, postProcessConstants);
 
                 Viewport.Context.Draw(6, 0);
             }
@@ -4061,45 +4025,48 @@ namespace Frosty.Core.Screens
             D3DUtils.BeginPerfEvent(Viewport.Context, "CalculateAdaptedLuminance");
             {
                 // calculate adapted luminance
-                Viewport.Context.MapSubresource(postProcessConstants, 0, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+                Viewport.Context.Map(postProcessConstants, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mappedResource);
                 {
+                    using Vortice.DataStream stream = new(mappedResource.DataPointer, postProcessConstants.Description.ByteWidth, true, true);
                     stream.Write((float)lastDeltaTime);
                 }
-                Viewport.Context.UnmapSubresource(postProcessConstants, 0);
+                Viewport.Context.Unmap(postProcessConstants, 0);
 
                 toneMapTextures[4].Clear(Viewport.Context, new Color4(0, 0, 0, 0));
-                Viewport.Context.OutputMerger.SetRenderTargets(null, toneMapTextures[4].RTV);
-                Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
-                Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, toneMapTextures[4].Texture.Description.Width, toneMapTextures[4].Texture.Description.Height));
+                Viewport.Context.OMSetRenderTargets(toneMapTextures[4].RTV, null);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
+                Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, toneMapTextures[4].Texture.Description.Width, toneMapTextures[4].Texture.Description.Height));
 
-                Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                Viewport.Context.InputAssembler.InputLayout = null;
+                Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                Viewport.Context.IASetVertexBuffer(0, null, 0);
+                Viewport.Context.IASetInputLayout(null);
 
-                Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.VSSetShader(vsFullscreenQuad);
+                Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                Viewport.Context.PixelShader.Set(psCalcAdaptedLum);
-                Viewport.Context.PixelShader.SetShaderResources(0, toneMapTextures[5].SRV, toneMapTextures[0].SRV);
-                Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
-                Viewport.Context.PixelShader.SetConstantBuffer(1, postProcessConstants);
+                Viewport.Context.PSSetShader(psCalcAdaptedLum);
+                Viewport.Context.PSSetShaderResources(0, new ID3D11ShaderResourceView[] { toneMapTextures[5].SRV, toneMapTextures[0].SRV });
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                Viewport.Context.PSSetConstantBuffer(1, postProcessConstants);
 
                 Viewport.Context.Draw(6, 0);
 
                 // copy current luminance into previous
-                Viewport.Context.ResolveSubresource(toneMapTextures[4].Texture, 0, toneMapTextures[5].Texture, 0, SharpDX.DXGI.Format.R32_Float);
-                Viewport.Context.CopyResource(toneMapTextures[4].Texture, toneMapTextures[6].Texture);
+                Viewport.Context.ResolveSubresource(toneMapTextures[5].Texture, 0, toneMapTextures[4].Texture, 0, Format.R32_Float);
+                Viewport.Context.CopyResource(toneMapTextures[6].Texture, toneMapTextures[4].Texture);
 
                 // read out average luminance
-                Viewport.Context.MapSubresource(toneMapTextures[6].Texture, 0, MapMode.Read, MapFlags.None, out stream);
+                Viewport.Context.Map(toneMapTextures[6].Texture, 0, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None, out uint mipSize, out mappedResource);
                 {
+                    using Vortice.DataStream stream = new(mappedResource.DataPointer, mipSize * mappedResource.RowPitch, true, true);
+
                     // store into a histogram
                     float avgLuminance = stream.Read<float>();
                     luminanceHistogram.Add(avgLuminance);
                 }
-                Viewport.Context.UnmapSubresource(toneMapTextures[6].Texture, 0);
+                Viewport.Context.Unmap(toneMapTextures[6].Texture, 0);
             }
             D3DUtils.EndPerfEvent(Viewport.Context);
         }
@@ -4111,31 +4078,31 @@ namespace Frosty.Core.Screens
         {
             D3DUtils.BeginPerfEvent(Viewport.Context, "Bloom");
             {
-                brightPassTexture.Clear(Viewport.Context, Color4.Black);
-                blurTexture.Clear(Viewport.Context, Color4.Black);
-                bloomSourceTexture.Clear(Viewport.Context, Color4.Black);
-                bloomTextures[0].Clear(Viewport.Context, Color4.Black);
-                bloomTextures[1].Clear(Viewport.Context, Color4.Black);
-                bloomTextures[2].Clear(Viewport.Context, Color4.Black);
+                brightPassTexture.Clear(Viewport.Context, Colors.Black);
+                blurTexture.Clear(Viewport.Context, Colors.Black);
+                bloomSourceTexture.Clear(Viewport.Context, Colors.Black);
+                bloomTextures[0].Clear(Viewport.Context, Colors.Black);
+                bloomTextures[1].Clear(Viewport.Context, Colors.Black);
+                bloomTextures[2].Clear(Viewport.Context, Colors.Black);
 
                 D3DUtils.BeginPerfEvent(Viewport.Context, "BrightPass");
                 {
-                    Viewport.Context.OutputMerger.SetRenderTargets(null, brightPassTexture.RTV);
-                    Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, brightPassTexture.Texture.Description.Width, brightPassTexture.Texture.Description.Height));
-                    Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                    Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                    Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                    Viewport.Context.OMSetRenderTargets(brightPassTexture.RTV, null);
+                    Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, brightPassTexture.Texture.Description.Width, brightPassTexture.Texture.Description.Height));
+                    Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                    Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                    Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                    Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                    Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                    Viewport.Context.InputAssembler.InputLayout = null;
+                    Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                    Viewport.Context.IASetVertexBuffer(0, null, 0);
+                    Viewport.Context.IASetInputLayout(null);
 
-                    Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                    Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                    Viewport.Context.VSSetShader(vsFullscreenQuad);
+                    Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                    Viewport.Context.PixelShader.Set(psBrightPass);
-                    Viewport.Context.PixelShader.SetShaderResources(0, scaledSceneTexture.SRV, toneMapTextures[4].SRV);
-                    Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                    Viewport.Context.PSSetShader(psBrightPass);
+                    Viewport.Context.PSSetShaderResources(0, new ID3D11ShaderResourceView[] { scaledSceneTexture.SRV, toneMapTextures[4].SRV });
+                    Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
                     Viewport.Context.Draw(6, 0);
                 }
@@ -4143,8 +4110,10 @@ namespace Frosty.Core.Screens
 
                 D3DUtils.BeginPerfEvent(Viewport.Context, "Blur");
                 {
-                    Viewport.Context.MapSubresource(postProcessConstants, 0, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+                    Viewport.Context.Map(postProcessConstants, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mappedResource);
                     {
+                        using Vortice.DataStream stream = new(mappedResource.DataPointer, postProcessConstants.Description.ByteWidth, true, true);
+
                         float tu = 1.0f / (float)blurTexture.Texture.Description.Width;
                         float tv = 1.0f / (float)blurTexture.Texture.Description.Height;
 
@@ -4180,25 +4149,25 @@ namespace Frosty.Core.Screens
                         for (int i = 0; i < 16; i++)
                             stream.Write(avSampleWeight[i]);
                     }
-                    Viewport.Context.UnmapSubresource(postProcessConstants, 0);
+                    Viewport.Context.Unmap(postProcessConstants, 0);
 
-                    Viewport.Context.OutputMerger.SetRenderTargets(null, blurTexture.RTV);
-                    Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, blurTexture.Texture.Description.Width, blurTexture.Texture.Description.Height));
-                    Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                    Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                    Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                    Viewport.Context.OMSetRenderTargets(blurTexture.RTV, null);
+                    Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, blurTexture.Texture.Description.Width, blurTexture.Texture.Description.Height));
+                    Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                    Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                    Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                    Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                    Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                    Viewport.Context.InputAssembler.InputLayout = null;
+                    Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                    Viewport.Context.IASetVertexBuffer(0, null, 0);
+                    Viewport.Context.IASetInputLayout(null);
 
-                    Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                    Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                    Viewport.Context.VSSetShader(vsFullscreenQuad);
+                    Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                    Viewport.Context.PixelShader.Set(psGaussianBlur5x5);
-                    Viewport.Context.PixelShader.SetShaderResources(0, brightPassTexture.SRV);
-                    Viewport.Context.PixelShader.SetConstantBuffers(1, postProcessConstants);
-                    Viewport.Context.PixelShader.SetSamplers(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
+                    Viewport.Context.PSSetShader(psGaussianBlur5x5);
+                    Viewport.Context.PSSetShaderResource(0, brightPassTexture.SRV);
+                    Viewport.Context.PSSetConstantBuffer(1, postProcessConstants);
+                    Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
 
                     Viewport.Context.Draw(6, 0);
                 }
@@ -4206,8 +4175,10 @@ namespace Frosty.Core.Screens
 
                 D3DUtils.BeginPerfEvent(Viewport.Context, "BloomSource");
                 {
-                    Viewport.Context.MapSubresource(postProcessConstants, 0, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+                    Viewport.Context.Map(postProcessConstants, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mappedResource);
                     {
+                        using Vortice.DataStream stream = new(mappedResource.DataPointer, postProcessConstants.Description.ByteWidth, true, true);
+
                         float tU = 1.0f / brightPassTexture.Texture.Description.Width;
                         float tV = 1.0f / brightPassTexture.Texture.Description.Height;
 
@@ -4221,25 +4192,25 @@ namespace Frosty.Core.Screens
                             }
                         }
                     }
-                    Viewport.Context.UnmapSubresource(postProcessConstants, 0);
+                    Viewport.Context.Unmap(postProcessConstants, 0);
 
-                    Viewport.Context.OutputMerger.SetRenderTargets(null, bloomSourceTexture.RTV);
-                    Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, bloomSourceTexture.Texture.Description.Width, bloomSourceTexture.Texture.Description.Height));
-                    Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                    Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                    Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                    Viewport.Context.OMSetRenderTargets(bloomSourceTexture.RTV, null);
+                    Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, bloomSourceTexture.Texture.Description.Width, bloomSourceTexture.Texture.Description.Height));
+                    Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                    Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                    Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                    Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                    Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                    Viewport.Context.InputAssembler.InputLayout = null;
+                    Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                    Viewport.Context.IASetVertexBuffer(0, null, 0);
+                    Viewport.Context.IASetInputLayout(null);
 
-                    Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                    Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                    Viewport.Context.VSSetShader(vsFullscreenQuad);
+                    Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                    Viewport.Context.PixelShader.Set(psDownSample2x2);
-                    Viewport.Context.PixelShader.SetShaderResources(0, blurTexture.SRV);
-                    Viewport.Context.PixelShader.SetConstantBuffers(1, postProcessConstants);
-                    Viewport.Context.PixelShader.SetSamplers(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
+                    Viewport.Context.PSSetShader(psDownSample2x2);
+                    Viewport.Context.PSSetShaderResource(0, blurTexture.SRV);
+                    Viewport.Context.PSSetConstantBuffer(1, postProcessConstants);
+                    Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
 
                     Viewport.Context.Draw(6, 0);
                 }
@@ -4247,8 +4218,10 @@ namespace Frosty.Core.Screens
 
                 D3DUtils.BeginPerfEvent(Viewport.Context, "Blur");
                 {
-                    Viewport.Context.MapSubresource(postProcessConstants, 0, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+                    Viewport.Context.Map(postProcessConstants, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mappedResource);
                     {
+                        using Vortice.DataStream stream = new(mappedResource.DataPointer, postProcessConstants.Description.ByteWidth, true, true);
+
                         float tu = 1.0f / (float)bloomSourceTexture.Texture.Description.Width;
                         float tv = 1.0f / (float)bloomSourceTexture.Texture.Description.Height;
 
@@ -4284,25 +4257,25 @@ namespace Frosty.Core.Screens
                         for (int i = 0; i < 16; i++)
                             stream.Write(avSampleWeight[i]);
                     }
-                    Viewport.Context.UnmapSubresource(postProcessConstants, 0);
+                    Viewport.Context.Unmap(postProcessConstants, 0);
 
-                    Viewport.Context.OutputMerger.SetRenderTargets(null, bloomTextures[2].RTV);
-                    Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, bloomTextures[2].Texture.Description.Width, bloomTextures[2].Texture.Description.Height));
-                    Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                    Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                    Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                    Viewport.Context.OMSetRenderTargets(bloomTextures[2].RTV, null);
+                    Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, bloomTextures[2].Texture.Description.Width, bloomTextures[2].Texture.Description.Height));
+                    Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                    Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                    Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                    Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                    Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                    Viewport.Context.InputAssembler.InputLayout = null;
+                    Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                    Viewport.Context.IASetVertexBuffer(0, null, 0);
+                    Viewport.Context.IASetInputLayout(null);
 
-                    Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                    Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                    Viewport.Context.VSSetShader(vsFullscreenQuad);
+                    Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                    Viewport.Context.PixelShader.Set(psGaussianBlur5x5);
-                    Viewport.Context.PixelShader.SetShaderResources(0, bloomSourceTexture.SRV);
-                    Viewport.Context.PixelShader.SetConstantBuffers(1, postProcessConstants);
-                    Viewport.Context.PixelShader.SetSamplers(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
+                    Viewport.Context.PSSetShader(psGaussianBlur5x5);
+                    Viewport.Context.PSSetShaderResource(0, bloomSourceTexture.SRV);
+                    Viewport.Context.PSSetConstantBuffer(1, postProcessConstants);
+                    Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
 
                     Viewport.Context.Draw(6, 0);
                 }
@@ -4310,8 +4283,10 @@ namespace Frosty.Core.Screens
 
                 D3DUtils.BeginPerfEvent(Viewport.Context, "HorizontalBlur");
                 {
-                    Viewport.Context.MapSubresource(postProcessConstants, 0, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+                    Viewport.Context.Map(postProcessConstants, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mappedResource);
                     {
+                        using Vortice.DataStream stream = new(mappedResource.DataPointer, postProcessConstants.Description.ByteWidth, true, true);
+
                         float tu = 1.0f / bloomTextures[2].Texture.Description.Width;
 
                         float weight = 2.0f * GaussianDistribution(0, 0, 3.0f);
@@ -4341,25 +4316,25 @@ namespace Frosty.Core.Screens
                         for (int i = 0; i < 16; i++)
                             stream.Write(avColorWeights[i]);
                     }
-                    Viewport.Context.UnmapSubresource(postProcessConstants, 0);
+                    Viewport.Context.Unmap(postProcessConstants, 0);
 
-                    Viewport.Context.OutputMerger.SetRenderTargets(null, bloomTextures[1].RTV);
-                    Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, bloomTextures[1].Texture.Description.Width, bloomTextures[1].Texture.Description.Height));
-                    Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                    Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                    Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                    Viewport.Context.OMSetRenderTargets(bloomTextures[1].RTV, null);
+                    Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, bloomTextures[1].Texture.Description.Width, bloomTextures[1].Texture.Description.Height));
+                    Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                    Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                    Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                    Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                    Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                    Viewport.Context.InputAssembler.InputLayout = null;
+                    Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                    Viewport.Context.IASetVertexBuffer(0, null, 0);
+                    Viewport.Context.IASetInputLayout(null);
 
-                    Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                    Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                    Viewport.Context.VSSetShader(vsFullscreenQuad);
+                    Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                    Viewport.Context.PixelShader.Set(psBloomBlur);
-                    Viewport.Context.PixelShader.SetShaderResources(0, bloomTextures[2].SRV);
-                    Viewport.Context.PixelShader.SetConstantBuffers(1, postProcessConstants);
-                    Viewport.Context.PixelShader.SetSamplers(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
+                    Viewport.Context.PSSetShader(psBloomBlur);
+                    Viewport.Context.PSSetShaderResource(0, bloomTextures[2].SRV);
+                    Viewport.Context.PSSetConstantBuffer(1, postProcessConstants);
+                    Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
 
                     Viewport.Context.Draw(6, 0);
                 }
@@ -4367,8 +4342,10 @@ namespace Frosty.Core.Screens
 
                 D3DUtils.BeginPerfEvent(Viewport.Context, "VerticalBlur");
                 {
-                    Viewport.Context.MapSubresource(postProcessConstants, 0, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+                    Viewport.Context.Map(postProcessConstants, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None, out MappedSubresource mappedResource);
                     {
+                        using Vortice.DataStream stream = new(mappedResource.DataPointer, postProcessConstants.Description.ByteWidth, true, true);
+
                         float tu = 1.0f / bloomTextures[1].Texture.Description.Height;
 
                         float weight = 2.0f * GaussianDistribution(0, 0, 3.0f);
@@ -4399,25 +4376,25 @@ namespace Frosty.Core.Screens
                         for (int i = 0; i < 16; i++)
                             stream.Write(avColorWeights[i]);
                     }
-                    Viewport.Context.UnmapSubresource(postProcessConstants, 0);
+                    Viewport.Context.Unmap(postProcessConstants, 0);
 
-                    Viewport.Context.OutputMerger.SetRenderTargets(null, bloomTextures[0].RTV);
-                    Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, bloomTextures[0].Texture.Description.Width, bloomTextures[0].Texture.Description.Height));
-                    Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                    Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                    Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                    Viewport.Context.OMSetRenderTargets(bloomTextures[0].RTV, null);
+                    Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, bloomTextures[0].Texture.Description.Width, bloomTextures[0].Texture.Description.Height));
+                    Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                    Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                    Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                    Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                    Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                    Viewport.Context.InputAssembler.InputLayout = null;
+                    Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                    Viewport.Context.IASetVertexBuffer(0, null, 0);
+                    Viewport.Context.IASetInputLayout(null);
 
-                    Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                    Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                    Viewport.Context.VSSetShader(vsFullscreenQuad);
+                    Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                    Viewport.Context.PixelShader.Set(psBloomBlur);
-                    Viewport.Context.PixelShader.SetShaderResources(0, bloomTextures[1].SRV);
-                    Viewport.Context.PixelShader.SetConstantBuffers(1, postProcessConstants);
-                    Viewport.Context.PixelShader.SetSamplers(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
+                    Viewport.Context.PSSetShader(psBloomBlur);
+                    Viewport.Context.PSSetShaderResource(0, bloomTextures[1].SRV);
+                    Viewport.Context.PSSetConstantBuffer(1, postProcessConstants);
+                    Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
 
                     Viewport.Context.Draw(6, 0);
                 }
@@ -4425,22 +4402,22 @@ namespace Frosty.Core.Screens
 
                 D3DUtils.BeginPerfEvent(Viewport.Context, "RenderBloom");
                 {
-                    Viewport.Context.OutputMerger.SetRenderTargets(null, postProcessTexture.RTV);
-                    Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, lightAccumulationTexture.Texture.Description.Width, lightAccumulationTexture.Texture.Description.Height));
-                    Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                    Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(new RenderTargetBlendDescription() { IsBlendEnabled = true, SourceBlend = BlendOption.One, DestinationBlend = BlendOption.One, BlendOperation = BlendOperation.Add, SourceAlphaBlend = BlendOption.One, DestinationAlphaBlend = BlendOption.One, AlphaBlendOperation = BlendOperation.Add, RenderTargetWriteMask = ColorWriteMaskFlags.All });
-                    Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                    Viewport.Context.OMSetRenderTargets(postProcessTexture.RTV, null);
+                    Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, lightAccumulationTexture.Texture.Description.Width, lightAccumulationTexture.Texture.Description.Height));
+                    Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                    Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(new RenderTargetBlendDescription() { BlendEnable = true, SourceBlend = Blend.One, DestinationBlend = Blend.One, BlendOperation = BlendOperation.Add, SourceBlendAlpha = Blend.One, DestinationBlendAlpha = Blend.One, BlendOperationAlpha = BlendOperation.Add, RenderTargetWriteMask = ColorWriteEnable.All }));
+                    Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                    Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                    Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                    Viewport.Context.InputAssembler.InputLayout = null;
+                    Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                    Viewport.Context.IASetVertexBuffer(0, null, 0);
+                    Viewport.Context.IASetInputLayout(null);
 
-                    Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                    Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                    Viewport.Context.VSSetShader(vsFullscreenQuad);
+                    Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                    Viewport.Context.PixelShader.Set(psRenderBloom);
-                    Viewport.Context.PixelShader.SetShaderResources(0, bloomTextures[0].SRV);
-                    Viewport.Context.PixelShader.SetSamplers(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
+                    Viewport.Context.PSSetShader(psRenderBloom);
+                    Viewport.Context.PSSetShaderResource(0, bloomTextures[0].SRV);
+                    Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
 
                     Viewport.Context.Draw(6, 0);
                 }
@@ -4473,14 +4450,14 @@ namespace Frosty.Core.Screens
                             Data = camera.GetProjMatrix(jitter),
                             Layout = GFSDK_SSAO.MatrixLayout.RowMajorOrder
                         },
-                        Viewport = GFSDK_SSAO.InputViewport.FromViewport(new SharpDX.Viewport(0, 0, Viewport.DepthBuffer.Description.Width, Viewport.DepthBuffer.Description.Height, 0.0f, 1.0f))
+                        Viewport = GFSDK_SSAO.InputViewport.FromViewport(new Vortice.Mathematics.Viewport(0, 0, Viewport.DepthBuffer.Description.Width, Viewport.DepthBuffer.Description.Height, 0.0f, 1.0f))
                     },
 
                     NormalData =
                     {
                         Enable = true,
                         pFullResNormalTextureSRV = worldNormalsForHBAOTexture.SRV.NativePointer,
-                        WorldToViewMatrix = {Data = Matrix.Scaling(-1, 1, 1) * camera.GetViewMatrix()},
+                        WorldToViewMatrix = {Data = Matrix4x4.CreateScale(-1, 1, 1) * camera.GetViewMatrix()},
                         DecodeScale = 2.0f,
                         DecodeBias = -1.0f
                     }
@@ -4515,40 +4492,40 @@ namespace Frosty.Core.Screens
         {
             D3DUtils.BeginPerfEvent(Viewport.Context, "ColorLookupTable");
             {
-                Viewport.Context.OutputMerger.SetRenderTargets(null, finalColorTexture.RTV);
-                Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
-                Viewport.Context.Rasterizer.SetViewport(new SharpDX.Viewport(0, 0, Viewport.ColorBuffer.Description.Width, Viewport.ColorBuffer.Description.Height));
+                Viewport.Context.OMSetRenderTargets(finalColorTexture.RTV, null);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
+                Viewport.Context.RSSetViewport(new Vortice.Mathematics.Viewport(0, 0, Viewport.ColorBuffer.Description.Width, Viewport.ColorBuffer.Description.Height));
 
-                Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                Viewport.Context.InputAssembler.InputLayout = null;
+                Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                Viewport.Context.IASetVertexBuffer(0, null, 0);
+                Viewport.Context.IASetInputLayout(null);
 
-                Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.VSSetShader(vsFullscreenQuad);
+                Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
                 if (LookupTable != null)
                 {
-                    Texture2D lookupTableTexture = LookupTable.ResourceAs<Texture2D>();
+                    ID3D11Texture2D lookupTableTexture = ComObject.As<ID3D11Texture2D>(LookupTable);
                     lookupTableConstants.UpdateData(Viewport.Context, new TableLookupConstants()
                     {
                         LutSize = lookupTableTexture.Description.Width,
                         FlipY = (lookupTableTexture.Description.Width == 33) ? 1.0f : 0.0f
                     });
 
-                    Viewport.Context.PixelShader.Set(psLookupTable);
-                    Viewport.Context.PixelShader.SetConstantBuffer(1, lookupTableConstants.Buffer);
+                    Viewport.Context.PSSetShader(psLookupTable);
+                    Viewport.Context.PSSetConstantBuffer(1, lookupTableConstants.Buffer);
                 }
                 else
                 {
                     // otherwise just resolve to final color
-                    Viewport.Context.PixelShader.Set(psResolve);
+                    Viewport.Context.PSSetShader(psResolve);
                 }
 
-                Viewport.Context.PixelShader.SetShaderResources(0, postProcessTexture.SRV, LookupTable);
-                Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
-                Viewport.Context.PixelShader.SetSampler(1, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
+                Viewport.Context.PSSetShaderResources(0, new ID3D11ShaderResourceView[] { postProcessTexture.SRV, LookupTable });
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                Viewport.Context.PSSetSampler(1, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipLinear));
                 Viewport.Context.Draw(6, 0);
             }
             D3DUtils.EndPerfEvent(Viewport.Context);
@@ -4567,16 +4544,16 @@ namespace Frosty.Core.Screens
                 // need to update the view constants to get a non jittered matrix
                 UpdateViewConstants(false);
 
-                Viewport.Context.OutputMerger.SetRenderTargets(selectionDepthTexture.DSV, null, null);
-                Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(depthComparison: Comparison.LessEqual);
-                Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.Front, depthClip: true);
+                Viewport.Context.OMSetRenderTargets(new ID3D11RenderTargetView[2], selectionDepthTexture.DSV);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(depthComparison: ComparisonFunction.LessEqual));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.Front, depthClip: true));
 
-                Viewport.Context.VertexShader.SetConstantBuffer(0, viewConstants.Buffer);
+                Viewport.Context.VSSetConstantBuffer(0, viewConstants.Buffer);
 
-                Viewport.Context.PixelShader.SetConstantBuffer(0, viewConstants.Buffer);
-                Viewport.Context.PixelShader.SetShaderResource(0, normalBasisCubemapTexture.SRV);
-                Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                Viewport.Context.PSSetConstantBuffer(0, viewConstants.Buffer);
+                Viewport.Context.PSSetShaderResource(0, normalBasisCubemapTexture.SRV);
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
                 RenderMeshes(MeshRenderPath.Selection, new List<MeshRenderInstance>() { meshes[0] });
             }
@@ -4592,36 +4569,36 @@ namespace Frosty.Core.Screens
             {
                 // resolve main depth into MSAA depth target
                 {
-                    Viewport.Context.OutputMerger.SetRenderTargets(editorCompositeDepthTexture.DSV, null, null);
-                    Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(true, depthComparison: Comparison.Less);
-                    Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                    Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                    Viewport.Context.OMSetRenderTargets(new ID3D11RenderTargetView[2], editorCompositeDepthTexture.DSV);
+                    Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(true, depthComparison: ComparisonFunction.Less));
+                    Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                    Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                    Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                    Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                    Viewport.Context.InputAssembler.InputLayout = null;
+                    Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                    Viewport.Context.IASetVertexBuffer(0, null, 0);
+                    Viewport.Context.IASetInputLayout(null);
 
-                    Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                    Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                    Viewport.Context.VSSetShader(vsFullscreenQuad);
+                    Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                    Viewport.Context.PixelShader.Set(psResolveDepthToMsaa);
-                    Viewport.Context.PixelShader.SetShaderResources(0, Viewport.DepthBufferSRV);
-                    Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                    Viewport.Context.PSSetShader(psResolveDepthToMsaa);
+                    Viewport.Context.PSSetShaderResource(0, Viewport.DepthBufferSRV);
+                    Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
                     Viewport.Context.Draw(6, 0);
                 }
 
                 // render editor primitives
-                Viewport.Context.OutputMerger.SetRenderTargets(editorCompositeDepthTexture.DSV, editorCompositeTexture.RTV);
-                Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(depthComparison: Comparison.LessEqual, depthWriteMask: DepthWriteMask.Zero);
-                Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.Front, depthClip: true);
+                Viewport.Context.OMSetRenderTargets(editorCompositeTexture.RTV, editorCompositeDepthTexture.DSV);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(depthComparison: ComparisonFunction.LessEqual, depthWriteMask: DepthWriteMask.Zero));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.Front, depthClip: true));
 
-                Viewport.Context.VertexShader.SetConstantBuffer(0, viewConstants.Buffer);
+                Viewport.Context.VSSetConstantBuffer(0, viewConstants.Buffer);
 
-                Viewport.Context.PixelShader.SetConstantBuffer(0, viewConstants.Buffer);
-                Viewport.Context.PixelShader.SetShaderResource(0, normalBasisCubemapTexture.SRV);
-                Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                Viewport.Context.PSSetConstantBuffer(0, viewConstants.Buffer);
+                Viewport.Context.PSSetShaderResource(0, normalBasisCubemapTexture.SRV);
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
                 RenderMeshes(MeshRenderPath.Forward, editorMeshes);
             }
@@ -4635,21 +4612,21 @@ namespace Frosty.Core.Screens
         {
             D3DUtils.BeginPerfEvent(Viewport.Context, "SelectionOutline");
             {
-                Viewport.Context.OutputMerger.SetRenderTargets(null, selectionOutlineTexture.RTV);
-                Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                Viewport.Context.OMSetRenderTargets(selectionOutlineTexture.RTV, null);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                Viewport.Context.InputAssembler.InputLayout = null;
+                Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                Viewport.Context.IASetVertexBuffer(0, null, 0);
+                Viewport.Context.IASetInputLayout(null);
 
-                Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.VSSetShader(vsFullscreenQuad);
+                Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                Viewport.Context.PixelShader.Set(psSelectionOutline);
-                Viewport.Context.PixelShader.SetShaderResources(0, finalColorTexture.SRV, selectionDepthTexture.SRV);
-                Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                Viewport.Context.PSSetShader(psSelectionOutline);
+                Viewport.Context.PSSetShaderResources(0, new ID3D11ShaderResourceView[] { finalColorTexture.SRV, selectionDepthTexture.SRV });
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
                 Viewport.Context.Draw(6, 0);
             }
@@ -4663,21 +4640,21 @@ namespace Frosty.Core.Screens
         {
             D3DUtils.BeginPerfEvent(Viewport.Context, "EditorComposite");
             {
-                Viewport.Context.OutputMerger.SetRenderTargets(null, Viewport.ColorBufferRTV);
-                Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-                Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-                Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                Viewport.Context.OMSetRenderTargets(Viewport.ColorBufferRTV, null);
+                Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false));
+                Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+                Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
 
-                Viewport.Context.InputAssembler.SetIndexBuffer(null, SharpDX.DXGI.Format.Unknown, 0);
-                Viewport.Context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding());
-                Viewport.Context.InputAssembler.InputLayout = null;
+                Viewport.Context.IASetIndexBuffer(null, Format.Unknown, 0);
+                Viewport.Context.IASetVertexBuffer(0, null, 0);
+                Viewport.Context.IASetInputLayout(null);
 
-                Viewport.Context.VertexShader.Set(vsFullscreenQuad);
-                Viewport.Context.VertexShader.SetConstantBuffer(0, commonConstants.Buffer);
+                Viewport.Context.VSSetShader(vsFullscreenQuad);
+                Viewport.Context.VSSetConstantBuffer(0, commonConstants.Buffer);
 
-                Viewport.Context.PixelShader.Set(psEditorComposite);
-                Viewport.Context.PixelShader.SetShaderResources(0, selectionOutlineTexture.SRV, editorCompositeTexture.SRV);
-                Viewport.Context.PixelShader.SetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
+                Viewport.Context.PSSetShader(psEditorComposite);
+                Viewport.Context.PSSetShaderResources(0, new ID3D11ShaderResourceView[] { selectionOutlineTexture.SRV, editorCompositeTexture.SRV });
+                Viewport.Context.PSSetSampler(0, D3DUtils.CreateSamplerState(address: TextureAddressMode.Clamp, filter: Filter.MinMagMipPoint));
 
                 Viewport.Context.Draw(6, 0);
             }

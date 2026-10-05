@@ -60,13 +60,19 @@ namespace AssetBankPlugin.Ant
 
         public ushort KeyTimeSize;
 
-        private List<Vector4> DecompressedData = new List<Vector4>();
+        private List<Vector4> DecompressedData;
         private const ushort eNoChannelMap = 8;
 
         public VbrAnimationAsset() { }
 
+        public void InvalidateDecompressedCache()
+        {
+            DecompressedData = null;
+        }
+
         public override void SetData(Dictionary<string, object> data)
         {
+            InvalidateDecompressedCache();
             ParseBasicData(data);
 
             if (data.TryGetValue("QuatMin", out object qmin)) QuatMin = Convert.ToSingle(qmin);

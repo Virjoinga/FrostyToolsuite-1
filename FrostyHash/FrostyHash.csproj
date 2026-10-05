@@ -1,0 +1,57 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Copyright>Copyright (c)  2019</Copyright>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <Platforms>x64</Platforms>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Configurations>Developer - Debug;Release - Final;Release - Alpha;Release - Beta</Configurations>
+    <RootNamespace>Frosty.Hash</RootNamespace>
+  </PropertyGroup>
+    
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Developer - Debug|x64'">
+    <OutputPath>bin\Developer\Debug\</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release - Final|x64' ">
+    <OutputPath>bin\Release\Final\</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release - Alpha|x64'">
+    <OutputPath>bin\Release\Final\</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release - Beta|x64'">
+    <OutputPath>bin\Release\Final\</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release - Alpha|x64'">
+    <OutputPath>bin\Release\Alpha\</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release - Beta|x64'">
+    <OutputPath>bin\Release\Alpha\</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release - Beta|x64' ">
+    <OutputPath>bin\Release\Beta\</OutputPath>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <!-- Enable `GeneratePathProperty` for all `PackageReference`s. -->
+    <PackageReference ExcludeAssets="runtime" GeneratePathProperty="true" />
+  </ItemDefinitionGroup>
+    
+  <ItemGroup>
+    <PackageReference Include="HashifyNET" Version="7.1.1" />
+  </ItemGroup>
+    
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <ItemGroup>
+      <EditorThirdPartyFolder Include="$(SolutionDir)FrostyEditor\$(OutDir)ThirdParty\" />
+      <ModManagerThirdPartyFolder Include="$(SolutionDir)FrostyModManager\$(OutDir)ThirdParty\" />
+    </ItemGroup>
+      
+    <Copy SourceFiles="$(PkgHashifyNET)\lib\net8.0\HashifyNET.dll" DestinationFolder="@(EditorThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgHashifyNET)\lib\net8.0\HashifyNET.dll" DestinationFolder="@(ModManagerThirdPartyFolder)" />
+  </Target>
+
+</Project>

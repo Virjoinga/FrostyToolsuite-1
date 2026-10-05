@@ -1,28 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using FrostySdk.Interfaces;
-using System.Windows;
-using FrostySdk.IO;
-using System.IO;
-using FrostySdk;
-using FrostySdk.Managers;
-using FrostySdk.Ebx;
-using WaveFormRendererLib;
-using System.Drawing.Imaging;
-using System.Windows.Media.Imaging;
-using System.Windows.Media;
-using NAudio.Wave;
-using Frosty.Core.Controls;
-using Frosty.Core;
+﻿using Frosty.Core;
 using Frosty.Core.Windows;
+using FrostySdk.Ebx;
+using FrostySdk.Interfaces;
+using FrostySdk.IO;
 using FrostySdk.Managers.Entries;
-using SoundEditorPlugin.Resources;
-using System.Threading;
-using System.Diagnostics;
-using FrostyCore;
-using System.Threading.Tasks;
-using System.Reflection;
+using NAudio.Wave;
+using NAudio.WaveFormRenderer;
 using SoundEditorPlugin.Helpers;
+using SoundEditorPlugin.Resources;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace SoundEditorPlugin
 {
@@ -179,7 +174,18 @@ namespace SoundEditorPlugin
                     try
                     {
                         var renderer = new WaveFormRenderer();
-                        var image = renderer.Render(track.Samples, maxPeakProvider, soundCloudOrangeTransparentBlocks);
+
+                        byte[] bytes = MemoryMarshal.AsBytes(track.Samples.AsSpan()).ToArray();
+
+                        using MemoryStream stream = new(bytes, writable: false);
+                        using RawSourceWaveStream waveStream = new(
+                            stream,
+                            new WaveFormat(track.SampleRate, 16, track.ChannelCount));
+
+                        var image = renderer.Render(
+                            waveStream,
+                            maxPeakProvider,
+                            soundCloudOrangeTransparentBlocks);
 
                         using (var ms = new MemoryStream())
                         {
@@ -202,15 +208,15 @@ namespace SoundEditorPlugin
 
                                 if (loopingDuration > 0)
                                 {
-                                    r.DrawLine(new Pen(Brushes.White, 1.0),
-                                        new Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), soundCloudOrangeTransparentBlocks.TopHeight),
-                                        new Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
-                                    r.DrawLine(new Pen(Brushes.White, 1.0),
-                                        new Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), soundCloudOrangeTransparentBlocks.TopHeight),
-                                        new Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
-                                    r.DrawLine(new Pen(Brushes.White, 1.0),
-                                        new Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height),
-                                        new Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
+                                    r.DrawLine(new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 1.0),
+                                        new System.Windows.Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), soundCloudOrangeTransparentBlocks.TopHeight),
+                                        new System.Windows.Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
+                                    r.DrawLine(new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 1.0),
+                                        new System.Windows.Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), soundCloudOrangeTransparentBlocks.TopHeight),
+                                        new System.Windows.Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
+                                    r.DrawLine(new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 1.0),
+                                        new System.Windows.Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height),
+                                        new System.Windows.Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
                                 }
                             }
 
@@ -259,7 +265,7 @@ namespace SoundEditorPlugin
         {
         }
 
-        protected override List<SoundDataTrack> InitialLoad(FrostyTaskWindow task)
+        protected unsafe override List<SoundDataTrack> InitialLoad(FrostyTaskWindow task)
         {
             List<SoundDataTrack> retVal = new List<SoundDataTrack>();
             dynamic root = RootObject;
@@ -701,7 +707,14 @@ namespace SoundEditorPlugin
                     try
                     {
                         var renderer = new WaveFormRenderer();
-                        var image = renderer.Render(track.Samples, maxPeakProvider, soundCloudOrangeTransparentBlocks);
+                        short[] samples = decodedSoundBuf.ToArray();
+
+                        byte[] bytes = MemoryMarshal.AsBytes(samples.AsSpan()).ToArray();
+
+                        using MemoryStream stream = new(bytes, writable: false);
+                        using RawSourceWaveStream waveStream = new(stream, new WaveFormat(track.SampleRate, 16, track.ChannelCount));
+
+                        var image = renderer.Render(waveStream, maxPeakProvider, soundCloudOrangeTransparentBlocks);
 
                         using (var ms = new MemoryStream())
                         {
@@ -724,15 +737,15 @@ namespace SoundEditorPlugin
 
                                 if (loopingDuration > 0)
                                 {
-                                    r.DrawLine(new Pen(Brushes.White, 1.0),
-                                        new Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), soundCloudOrangeTransparentBlocks.TopHeight),
-                                        new Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
-                                    r.DrawLine(new Pen(Brushes.White, 1.0),
-                                        new Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), soundCloudOrangeTransparentBlocks.TopHeight),
-                                        new Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
-                                    r.DrawLine(new Pen(Brushes.White, 1.0),
-                                        new Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height),
-                                        new Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
+                                    r.DrawLine(new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 1.0),
+                                        new System.Windows.Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), soundCloudOrangeTransparentBlocks.TopHeight),
+                                        new System.Windows.Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
+                                    r.DrawLine(new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 1.0),
+                                        new System.Windows.Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), soundCloudOrangeTransparentBlocks.TopHeight),
+                                        new System.Windows.Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
+                                    r.DrawLine(new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 1.0),
+                                        new System.Windows.Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height),
+                                        new System.Windows.Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
                                 }
                             }
 
@@ -905,7 +918,14 @@ namespace SoundEditorPlugin
                         try
                         {
                             var renderer = new WaveFormRenderer();
-                            var image = renderer.Render(decodedSoundBuf.ToArray(), maxPeakProvider, soundCloudOrangeTransparentBlocks);
+                            short[] samples = decodedSoundBuf.ToArray();
+
+                            byte[] bytes = MemoryMarshal.AsBytes(samples.AsSpan()).ToArray();
+
+                            using MemoryStream stream = new(bytes, writable: false);
+                            using RawSourceWaveStream waveStream = new(stream, new WaveFormat(track.SampleRate, 16, track.ChannelCount));
+
+                            var image = renderer.Render(waveStream, maxPeakProvider, soundCloudOrangeTransparentBlocks);
 
                             using (var ms = new MemoryStream())
                             {
@@ -1083,7 +1103,14 @@ namespace SoundEditorPlugin
             try
             {
                 var renderer = new WaveFormRenderer();
-                var image = renderer.Render(track.Samples, maxPeakProvider, soundCloudOrangeTransparentBlocks);
+                short[] samples = decodedSoundBuf.ToArray();
+
+                byte[] bytes = MemoryMarshal.AsBytes(samples.AsSpan()).ToArray();
+
+                using MemoryStream stream = new(bytes, writable: false);
+                using RawSourceWaveStream waveStream = new(stream, new WaveFormat(track.SampleRate, 16, track.ChannelCount));
+
+                var image = renderer.Render(waveStream, maxPeakProvider, soundCloudOrangeTransparentBlocks);
 
                 using (var ms = new MemoryStream())
                 {
@@ -1106,15 +1133,15 @@ namespace SoundEditorPlugin
 
                         if (loopingDuration > 0)
                         {
-                            r.DrawLine(new Pen(Brushes.White, 1.0),
-                                new Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), soundCloudOrangeTransparentBlocks.TopHeight),
-                                new Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
-                            r.DrawLine(new Pen(Brushes.White, 1.0),
-                                new Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), soundCloudOrangeTransparentBlocks.TopHeight),
-                                new Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
-                            r.DrawLine(new Pen(Brushes.White, 1.0),
-                                new Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height),
-                                new Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
+                            r.DrawLine(new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 1.0),
+                                new System.Windows.Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), soundCloudOrangeTransparentBlocks.TopHeight),
+                                new System.Windows.Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
+                            r.DrawLine(new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 1.0),
+                                new System.Windows.Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), soundCloudOrangeTransparentBlocks.TopHeight),
+                                new System.Windows.Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
+                            r.DrawLine(new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 1.0),
+                                new System.Windows.Point((int)((startLoopingTime / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height),
+                                new System.Windows.Point((int)(((startLoopingTime + loopingDuration) / track.Duration) * soundCloudOrangeTransparentBlocks.Width), (int)bitmapImage.Height));
                         }
                     }
 

@@ -22,7 +22,7 @@ using AssetBankPlugin;
 
 [assembly: PluginDisplayName("Animation Editor")]
 [assembly: PluginAuthor("Lala & Obesedwarf")]
-[assembly: PluginVersion("2.0.0.0")]
+[assembly: PluginVersion("2.0.1.0")]
 
 [assembly: RegisterOptionsExtension(typeof(AnimationOptions))]
 [assembly: RegisterAssetDefinition("AntStateAsset", typeof(AntStateAssetDefinition))]

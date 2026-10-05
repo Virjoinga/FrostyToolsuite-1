@@ -1,13 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Configurations>Developer - Debug;Release - Alpha;Release - Beta;Release - Final</Configurations>
     <Platforms>x64</Platforms>
-    <TargetFrameworks>net48</TargetFrameworks>
+    <TargetFrameworks>net10.0-windows</TargetFrameworks>
     <AssemblyTitle>BlankPlugin</AssemblyTitle>
     <Product>CopyFilePathPlugin</Product>
     <Copyright>Copyright © 2021</Copyright>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+	<AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <UseWPF>true</UseWPF>
     <OutputType>Library</OutputType>
     <Authors>CopyFilePathPlugin</Authors>
@@ -50,16 +51,14 @@
     <ProjectReference Include="..\..\FrostyEditor\FrostyEditor.csproj">
       <Private>false</Private>
     </ProjectReference>
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
-    <Reference Include="System.Windows.Forms" />
-    <Reference Include="System.Xaml" />
-    <Reference Include="WindowsBase" />
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command='xcopy /Y "$(TargetPath)" "$(SolutionDir)$(OutDir)Plugins\"' />
-  </Target>
+		<ItemGroup>
+			<PluginFiles Include="$(TargetDir)$(ProjectName).*" />
+		</ItemGroup>
+
+		<Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(SolutionDir)FrostyEditor\$(OutDir)Plugins\" />
+	</Target>
 
 </Project>

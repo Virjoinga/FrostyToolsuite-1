@@ -5,9 +5,9 @@ using AssetBankPlugin.Render;
 using Frosty.Controls;
 using Frosty.Core;
 using Frosty.Core.Controls;
-using Frosty.Core.Screens;
 using Frosty.Core.Viewport;
 using Frosty.Core.Windows;
+using FrostySdk;
 using FrostySdk.Ebx;
 using FrostySdk.IO;
 using FrostySdk.Managers;
@@ -15,11 +15,12 @@ using FrostySdk.Managers.Entries;
 using MeshSetPlugin.Render;
 using MeshSetPlugin.Resources;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Numerics;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -116,8 +117,10 @@ namespace AssetBankPlugin
 
                     Dispatcher.Invoke(() =>
                     {
-                        //m_screen.LoadSkeleton(renderSkel);
+                        m_screen.LoadSkeleton(renderSkel);
                         m_screen.LoadAnimation(renderAnim, internalAnim, endFrame);
+
+                        UpdateMeshSkeletons();
 
                         if (m_playPauseBtn != null) m_playPauseBtn.IsChecked = true;
                         if (m_timelineSlider != null) { m_timelineSlider.Maximum = endFrame; m_timelineSlider.Value = 0; }
@@ -133,14 +136,23 @@ namespace AssetBankPlugin
             }
         }
 
+        private CancellationTokenSource _searchCancellationTokenSource;
         private async Task LoadMeshAsync(string meshEbxPath)
         {
             if (string.IsNullOrEmpty(meshEbxPath)) return;
 
-            if (m_screen.CurrentSkeleton == null)
+            // Initialize the variation database
+
+            if (ProfilesLibrary.DataVersion != (int)ProfileVersion.PlantsVsZombiesBattleforNeighborville)
             {
-                App.Logger.LogWarning("[AntStateEditor] Select an animation first so the skeleton is ready before loading a mesh.");
-                return;
+                if (!MeshVariationDb.IsLoaded)
+                {
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        FrostyTaskWindow.Show("Loading Variations", "", MeshVariationDb.LoadVariations);
+                    });
+                }
+                MeshVariationDb.LoadModifiedVariations();
             }
 
             var entry = App.AssetManager.GetEbxEntry(meshEbxPath);
@@ -348,7 +360,7 @@ namespace AssetBankPlugin
                         int idx = _loadedMeshData.Count;
                         _loadedMeshData.Add(newEntry);
                         LoadedMeshes.Add(new LoadedMeshViewModel(this) { InternalIndex = idx, Name = entry.Filename });
-                        m_screen.AddMesh(meshSet, materials, SharpDX.Matrix.Identity, perMeshSkel);
+                        m_screen.AddMesh(meshSet, materials, Matrix4x4.Identity, perMeshSkel);
                         _meshLoaded = true;
                         m_screen.RefreshPose();
                     }
@@ -398,16 +410,15 @@ namespace AssetBankPlugin
                     {
                         int parentIdx = (int)bone.ParentIndex;
 
-                        SharpDX.Matrix localPose = new SharpDX.Matrix(
+                        Matrix4x4 localPose = new Matrix4x4(
                             bone.Pose.right.x, bone.Pose.right.y, bone.Pose.right.z, 0f,
                             bone.Pose.up.x, bone.Pose.up.y, bone.Pose.up.z, 0f,
                             bone.Pose.forward.x, bone.Pose.forward.y, bone.Pose.forward.z, 0f,
                             bone.Pose.trans.x, bone.Pose.trans.y, bone.Pose.trans.z, 1f
                         );
 
-                        SharpDX.Matrix invLocal = localPose;
-                        invLocal.Invert();
-                        SharpDX.Matrix modelPose = skeleton.GetBone(parentIdx).ModelPose * invLocal;
+                        Matrix4x4.Invert(localPose, out Matrix4x4 invLocal);
+                        Matrix4x4 modelPose = skeleton.GetBone(parentIdx).ModelPose * invLocal;
 
                         skeleton.AddBone(new MeshRenderSkeleton.Bone
                         {
@@ -681,7 +692,48 @@ namespace AssetBankPlugin
 
             return null;
         }
+        private static Dictionary<Guid, ulong> GetOriginalHashes(ResAssetEntry resEntry, ChunkAssetEntry chunkEntry, int bundleId)
+        {
+            byte[] origBytes = null;
 
+            if (resEntry != null)
+            {
+                var mod = resEntry.ModifiedEntry;
+                resEntry.ModifiedEntry = null;
+                using (var origStream = App.AssetManager.GetRes(resEntry))
+                {
+                    if (origStream != null)
+                    {
+                        using (var ms = new MemoryStream()) { origStream.CopyTo(ms); origBytes = ms.ToArray(); }
+                    }
+                }
+                resEntry.ModifiedEntry = mod;
+            }
+            else if (chunkEntry != null)
+            {
+                var mod = chunkEntry.ModifiedEntry;
+                chunkEntry.ModifiedEntry = null;
+                using (var origStream = App.AssetManager.GetChunk(chunkEntry))
+                {
+                    if (origStream != null)
+                    {
+                        using (var ms = new MemoryStream()) { origStream.CopyTo(ms); origBytes = ms.ToArray(); }
+                    }
+                }
+                chunkEntry.ModifiedEntry = mod;
+            }
+
+            if (origBytes == null) return null;
+
+            Dictionary<Guid, ulong> hashes;
+            using (var reader = new NativeReader(new MemoryStream(origBytes)))
+            {
+                var origBank = new Bank(reader, bundleId, isHashMode: true);
+                hashes = origBank.OriginalHashes;
+            }
+
+            return hashes;
+        }
         private async Task LoadAsync()
         {
             try
@@ -723,21 +775,36 @@ namespace AssetBankPlugin
                 _bankChunkEntry = chunkEntry;
                 _bankIsBigEndian = DetectBigEndian(rawBytes);
 
-                Bank bank = await Task.Run(() =>
+                Dictionary<Guid, ulong> originalHashes = null;
+
+                await Task.Run(() =>
                 {
-                    using (var reader = new NativeReader(new MemoryStream(rawBytes))) { return new Bank(reader, bundleId); }
+                    bool isModified = (_bankResEntry?.HasModifiedData ?? false) || (_bankChunkEntry?.HasModifiedData ?? false);
+                    if (isModified)
+                    {
+                        SetLoadingState(true, "Comparing against original bank...");
+
+                        originalHashes = GetOriginalHashes(_bankResEntry, _bankChunkEntry, bundleId);
+
+                        GC.Collect(2, GCCollectionMode.Forced, true, true);
+                        GC.WaitForPendingFinalizers();
+                    }
+
+                    SetLoadingState(true, isModified ? "Parsing modified bank..." : "Parsing bank data...");
+                    using (var reader = new NativeReader(new MemoryStream(_bankBytes)))
+                    {
+                        _bank = new Bank(reader, bundleId);
+                    }
                 });
-                _bank = bank;
 
                 SetLoadingState(true, "Building asset hierarchy...");
 
                 _masterGroups = await Task.Run(() =>
                 {
                     var animToController = BuildAnimToControllerMap();
-
                     var tempGroups = new Dictionary<string, List<AntAssetViewModel>>();
 
-                    foreach (var kvp in bank.DataNames)
+                    foreach (var kvp in _bank.DataNames)
                     {
                         var antAsset = AntRefTable.Get(kvp.Value);
                         string typeName = antAsset != null ? antAsset.AssetType : "Unknown";
@@ -752,13 +819,35 @@ namespace AssetBankPlugin
                         if (antAsset is AnimationAsset && animToController.TryGetValue(kvp.Value, out var controller))
                             displayName = $"{controller.Name} ({kvp.Key})";
 
-                        list.Add(new AntAssetViewModel
+                        var vm = new AntAssetViewModel
                         {
                             ParentEditor = this,
                             Name = displayName,
                             Id = kvp.Value,
                             AssetInstance = antAsset
-                        });
+                        };
+
+                        // Check modifications
+                        if (originalHashes != null && antAsset != null)
+                        {
+                            if (originalHashes.TryGetValue(antAsset.ID, out ulong origHash))
+                            {
+                                ulong currentHash = Bank.ComputeAssetHash(antAsset);
+                                if (currentHash != origHash)
+                                {
+                                    vm.IsModified = true;
+                                    vm.IsUnsaved = false;
+                                }
+                            }
+                            else
+                            {
+                                vm.IsNew = true;
+                                vm.IsModified = true;
+                                vm.IsUnsaved = false;
+                            }
+                        }
+
+                        list.Add(vm);
                     }
 
                     return tempGroups
@@ -791,33 +880,124 @@ namespace AssetBankPlugin
             });
         }
 
-        private void ApplySearchFilter(string query)
+        private async void ApplySearchFilter(string searchText)
         {
-            _filteredGroups.Clear();
+            _searchCancellationTokenSource?.Cancel();
+            _searchCancellationTokenSource?.Dispose();
+            _searchCancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = _searchCancellationTokenSource.Token;
 
-            if (string.IsNullOrWhiteSpace(query))
+            searchText = searchText?.Trim() ?? "";
+            bool showModified = m_filterMenu?.ShowModifiedOnly ?? false;
+            bool showAnimsOnly = m_filterMenu?.ShowAnimationsOnly ?? false;
+            bool sortAsc = m_filterMenu?.SortAscending ?? true;
+
+            var masterGroupsSnapshot = _masterGroups.ToList();
+
+            try
             {
-                foreach (var group in _masterGroups) _filteredGroups.Add(group);
-                return;
+                List<AntTypeGroup> newFilteredGroups = await Task.Run(() =>
+                {
+                    return ProcessFilterOnBackgroundThread(
+                        masterGroupsSnapshot,
+                        searchText,
+                        showModified,
+                        showAnimsOnly,
+                        sortAsc,
+                        cancellationToken);
+                }, cancellationToken);
+
+                if (cancellationToken.IsCancellationRequested)
+                    return;
+
+                _filteredGroups.Clear();
+                foreach (var group in newFilteredGroups)
+                {
+                    _filteredGroups.Add(group);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                App.Logger.LogError($"[AntStateEditor] Search filter error: {ex.Message}");
+            }
+        }
+
+        // Helper method running on the background thread
+        private List<AntTypeGroup> ProcessFilterOnBackgroundThread(
+            List<AntTypeGroup> masterGroups,
+            string searchText,
+            bool showModified,
+            bool showAnimsOnly,
+            bool sortAsc,
+            CancellationToken token)
+        {
+            string typeQuery = null;
+            string textQuery = searchText;
+
+            if (searchText.Contains("@"))
+            {
+                var parts = searchText.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                var typeToken = parts.FirstOrDefault(p => p.StartsWith("@"));
+                if (typeToken != null)
+                {
+                    typeQuery = typeToken.Substring(1);
+                    textQuery = string.Join(" ", parts.Where(p => p != typeToken));
+                }
             }
 
-            query = query.ToLower();
+            IEnumerable<AntTypeGroup> sortedGroups = sortAsc
+                ? masterGroups.OrderBy(g => g.TypeName)
+                : masterGroups.OrderByDescending(g => g.TypeName);
 
-            foreach (var group in _masterGroups)
+            if (!string.IsNullOrEmpty(typeQuery))
             {
-                var matchingAssets = group.Assets.Where(a =>
-                    a.Name.ToLower().Contains(query) ||
-                    a.Id.ToString().ToLower().Contains(query)).ToList();
+                sortedGroups = sortedGroups.Where(g => g.TypeName.IndexOf(typeQuery, StringComparison.OrdinalIgnoreCase) >= 0);
+            }
 
-                if (matchingAssets.Count > 0)
+            var resultGroups = new List<AntTypeGroup>();
+
+            foreach (var group in sortedGroups)
+            {
+                // Check for cancellation sometimes during heavy loops
+                if (token.IsCancellationRequested)
+                    return new List<AntTypeGroup>();
+
+                var matchedAssets = group.Assets.Where(vm =>
                 {
-                    _filteredGroups.Add(new AntTypeGroup
+                    if (showAnimsOnly && !(vm.AssetInstance is AnimationAsset))
+                        return false;
+
+                    if (showModified && !vm.IsModified && !vm.IsNew)
+                        return false;
+
+                    if (!string.IsNullOrEmpty(textQuery))
+                    {
+                        bool nameMatches = vm.Name.IndexOf(textQuery, StringComparison.OrdinalIgnoreCase) >= 0;
+                        bool idMatches = vm.Id.ToString().IndexOf(textQuery, StringComparison.OrdinalIgnoreCase) >= 0;
+                        if (!nameMatches && !idMatches) return false;
+                    }
+
+                    return true;
+                });
+
+                var sortedList = sortAsc
+                    ? matchedAssets.OrderBy(a => a.Name).ToList()
+                    : matchedAssets.OrderByDescending(a => a.Name).ToList();
+
+                if (sortedList.Count > 0)
+                {
+                    resultGroups.Add(new AntTypeGroup
                     {
                         TypeName = group.TypeName,
-                        Assets = new ObservableCollection<AntAssetViewModel>(matchingAssets)
+                        Assets = new ObservableCollection<AntAssetViewModel>(sortedList)
                     });
                 }
             }
+
+            return resultGroups;
         }
 
         private void ToggleBulkMode(bool isBulk)
@@ -897,9 +1077,10 @@ namespace AssetBankPlugin
                 return;
             }
 
-            FrostySaveFileDialog sfd = new FrostySaveFileDialog("Select Export Directory", "*.seanim (SEAnim)|*.seanim", "SEAnim", "FolderSelection");
+            FrostySaveFileDialog sfd = new FrostySaveFileDialog("Select Export Directory", "*.cast (Cast)|*.cast|*.seanim (SEAnim)|*.seanim", "Cast", "FolderSelection");
             if (!sfd.ShowDialog()) return;
             string exportDirectory = Path.GetDirectoryName(sfd.FileName);
+            string extension = Path.GetExtension(sfd.FileName).ToLower();
 
             FrostyTaskWindow.Show($"Exporting {assetsToExport.Count} Animations", "", (task) =>
             {
@@ -931,7 +1112,16 @@ namespace AssetBankPlugin
                             anim.Channels = anim.GetChannels(anim.ChannelToDofAsset);
                             var intern = anim.ConvertToInternal();
                             if (intern != null)
-                                new AnimationExporterSEANIM().Export(intern, skeleton, exportDirectory);
+                            {
+                                if (extension == ".cast")
+                                {
+                                    new AnimationExporterCAST().Export(intern, skeleton, exportDirectory);
+                                }
+                                else
+                                {
+                                    new AnimationExporterSEANIM().Export(intern, skeleton, exportDirectory);
+                                }
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -963,7 +1153,7 @@ namespace AssetBankPlugin
                     if (i < LoadedMeshes.Count && LoadedMeshes[i].IsVisible)
                     {
                         var e = _loadedMeshData[i];
-                        m_screen.AddMesh(e.MeshSet, e.Materials, SharpDX.Matrix.Identity, e.PerMeshSkeleton);
+                        m_screen.AddMesh(e.MeshSet, e.Materials, Matrix4x4.Identity, e.PerMeshSkeleton);
                     }
                 }
                 _meshLoaded = _loadedMeshData.Count > 0;
@@ -978,7 +1168,6 @@ namespace AssetBankPlugin
                 dynamic mainWin = App.EditorWindow;
                 EbxAssetEntry entry = mainWin?.DataExplorer?.SelectedAsset as EbxAssetEntry;
                 if (entry == null) { App.Logger.LogWarning("[AntStateEditor] No asset selected in data explorer."); return; }
-                if (m_screen.CurrentSkeleton == null) { App.Logger.LogWarning("[AntStateEditor] Load an animation first so the skeleton is ready."); return; }
 
                 var ebx = App.AssetManager.GetEbx(entry);
                 string type = ebx.RootObject.GetType().Name;
@@ -1002,7 +1191,6 @@ namespace AssetBankPlugin
                 dynamic mainWin = App.EditorWindow;
                 EbxAssetEntry entry = mainWin?.DataExplorer?.SelectedAsset as EbxAssetEntry;
                 if (entry == null) { App.Logger.LogWarning("[AntStateEditor] No asset selected in data explorer."); return; }
-                if (m_screen.CurrentSkeleton == null) { App.Logger.LogWarning("[AntStateEditor] Load an animation first so the skeleton is ready."); return; }
 
                 var ebx = App.AssetManager.GetEbx(entry);
                 string type = ebx.RootObject.GetType().Name;

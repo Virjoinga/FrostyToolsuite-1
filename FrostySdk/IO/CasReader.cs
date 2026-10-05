@@ -65,10 +65,7 @@ namespace FrostySdk.IO
             byte[] buffer = null;
 
             if ((flags & 0x0F) != 0)
-            {
                 bufferSize = ((flags & 0x0F) << 0x10) + bufferSize;
-            }
-
             if ((decompressedSize & 0xFF000000) != 0)
             {
                 decompressedSize &= 0x00FFFFFF;
@@ -79,33 +76,17 @@ namespace FrostySdk.IO
             compressionType = (ushort)(compressionType & 0x7F);
 
             if (compressionType == 0x00) // No Compression
-            {
                 buffer = ReadUncompressed(bufferSize, unobfuscate);
-            }
             else if (compressionType == 0x02) // ZLib compression
-            {
                 buffer = DecompressBlockZLib(bufferSize, decompressedSize);
-            }
             else if (compressionType == 0x0f) // ZStd Compression
-            {
                 buffer = DecompressBlockZStd(bufferSize, decompressedSize, useDictionary, unobfuscate);
-            }
             else if (compressionType == 0x09) // Diff
-            {
                 buffer = DecompressBlockLZ4(bufferSize, decompressedSize);
-            }
             else if (compressionType == 0x11) // Oodle (v6)
-            {
                 buffer = DecompressOodle(bufferSize, decompressedSize, unobfuscate);
-            }
             else if (compressionType == 0x15) // Oodle (v4)
-            {
                 buffer = DecompressOodle(bufferSize, decompressedSize, unobfuscate);
-            }
-            else if (compressionType == 0x19) // Oodle (v8)
-            {
-                buffer = DecompressOodle(bufferSize, decompressedSize, unobfuscate);
-            }
 
             return buffer;
         }
@@ -345,8 +326,10 @@ namespace FrostySdk.IO
 
             int size = (int)inStream.Length;
 
-            byte[] tmpBuffer = new byte[size];
-            inStream.Read(tmpBuffer, 0, size);
+            byte[] buffer = new byte[size];
+            inStream.Read(buffer, 0, size);
+
+            var decryptedBuffer = new byte[buffer.Length];
 
             using (Aes aes = Aes.Create())
             {
@@ -354,16 +337,16 @@ namespace FrostySdk.IO
                 aes.IV = encryptionKey;
 
                 ICryptoTransform decryptor = aes.CreateDecryptor(aes.Key, aes.IV);
-                using (MemoryStream decryptStream = new MemoryStream(tmpBuffer))
+                using (MemoryStream decryptStream = new MemoryStream(buffer))
                 {
                     using (CryptoStream cryptoStream = new CryptoStream(decryptStream, decryptor, CryptoStreamMode.Read))
-                        cryptoStream.Read(tmpBuffer, 0, size);
+                        cryptoStream.Read(decryptedBuffer, 0, size);
                 }
             }
 
             inStream.Dispose();
-            Array.Resize<byte>(ref tmpBuffer, (int)actualSize);
-            return new MemoryStream(tmpBuffer);
+            Array.Resize<byte>(ref decryptedBuffer, (int)actualSize);
+            return new MemoryStream(decryptedBuffer);
         }
     }
 }

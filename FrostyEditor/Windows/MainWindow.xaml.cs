@@ -1,18 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.IO;
-using System.Linq;
-using System.Media;
-using System.Threading;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Navigation;
-using Frosty.Controls;
+﻿using Frosty.Controls;
 using Frosty.Core;
+using Frosty.Core.Bookmarks;
 using Frosty.Core.Commands;
 using Frosty.Core.Controls;
 using Frosty.Core.Converters;
@@ -27,6 +15,19 @@ using FrostySdk.IO;
 using FrostySdk.Managers;
 using FrostySdk.Managers.Entries;
 using Microsoft.Win32;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
+using System.Linq;
+using System.Media;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Navigation;
 using Bookmarks = Frosty.Core.Bookmarks;
 
 namespace FrostyEditor.Windows
@@ -730,7 +731,11 @@ namespace FrostyEditor.Windows
 
         private void hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
         {
-            System.Diagnostics.Process.Start(e.Uri.ToString());
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = e.Uri.ToString(),
+                UseShellExecute = true
+            });
         }
 
         public void OpenEditor(string title, FrostyBaseEditor editor)
@@ -1358,7 +1363,86 @@ namespace FrostyEditor.Windows
 
         private void BookmarkTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
-            BookmarkRemoveButton.IsEnabled = BookmarkEditLabelButton.IsEnabled = BookmarkTreeView.SelectedItem != null;
+            bool isSelected = BookmarkTreeView.SelectedItem != null;
+            BookmarkRemoveButton.IsEnabled = BookmarkEditLabelButton.IsEnabled =
+            BookmarkMoveUpButton.IsEnabled = BookmarkMoveDownButton.IsEnabled = isSelected;
+        }
+
+        private void BookmarkMoveUpButton_Click(object sender, RoutedEventArgs e) => MoveItem(-1);
+
+        private void BookmarkMoveDownButton_Click(object sender, RoutedEventArgs e) => MoveItem(1);
+
+        private void MoveItem(int direction)
+        {
+            if (BookmarkTreeView.SelectedItem is not BookmarkItem item ||
+                BookmarkContextPicker.SelectedItem is not BookmarkContext context)
+                return;
+
+            var siblings = item.Parent != null ? item.Parent.Children : context.Bookmarks;
+            int index = siblings.IndexOf(item);
+            int targetIndex = index + direction;
+
+            if (targetIndex >= 0 && targetIndex < siblings.Count)
+            {
+                if (siblings[targetIndex] is { IsFolder: true, IsExpanded: true } folder)
+                {
+                    siblings.RemoveAt(index);
+                    item.Parent = folder;
+
+                    if (direction < 0)
+                        folder.Children.Add(item);
+                    else
+                        folder.Children.Insert(0, item);
+                }
+                else
+                {
+                    (siblings[index], siblings[targetIndex]) = (siblings[targetIndex], siblings[index]);
+                }
+            }
+            else if (item.Parent is BookmarkItem parent)
+            {
+                var parentSiblings = parent.Parent != null ? parent.Parent.Children : context.Bookmarks;
+                int parentIndex = parentSiblings.IndexOf(parent);
+
+                siblings.RemoveAt(index);
+                item.Parent = parent.Parent;
+                parentSiblings.Insert(parentIndex + (direction > 0 ? 1 : 0), item);
+            }
+
+            BookmarkTreeView.Items.Refresh();
+            item.IsSelected = true;
+            BookmarkDb.SaveDb();
+        }
+
+        private static T FindVisualAncestor<T>(DependencyObject obj) where T : DependencyObject
+        {
+            while (obj is not null and not T)
+                obj = VisualTreeHelper.GetParent(obj);
+
+            return obj as T;
+        }
+
+        private void BookmarkTreeView_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is DependencyObject src && FindVisualAncestor<TreeViewItem>(src) != null)
+                return;
+
+            if (BookmarkTreeView.SelectedItem is not Bookmarks.BookmarkItem item)
+                return;
+
+            var path = new Stack<Bookmarks.BookmarkItem>();
+            for (var cur = item; cur != null; cur = cur.Parent)
+                path.Push(cur);
+
+            var gen = BookmarkTreeView.ItemContainerGenerator;
+
+            while (path.TryPop(out var curItem) && gen.ContainerFromItem(curItem) is TreeViewItem container)
+            {
+                if (path.Count == 0)
+                    container.IsSelected = false;
+                else
+                    gen = container.ItemContainerGenerator;
+            }
         }
 
         private bool BookmarkFilter(Bookmarks.BookmarkItem target)
@@ -1478,10 +1562,6 @@ namespace FrostyEditor.Windows
             RemoveAllTabs();
         }
 
-        private void BookmarkTreeView_MouseDown(object sender, MouseButtonEventArgs e) {
-            TreeViewItem treeItem = (TreeViewItem)BookmarkTreeView.ItemContainerGenerator.ContainerFromItem(BookmarkTreeView.SelectedItem);
-            if (treeItem != null) treeItem.IsSelected = false;
-        }
         /// <summary>
         /// Adds a specified project path to the list of recent projects.
         /// </summary>

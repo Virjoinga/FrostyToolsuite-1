@@ -11,6 +11,175 @@
         <ResourceDictionary Source="/FrostyControls;component/Themes/Generic.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
+    <local:FastAssetIconConverter x:Key="FastAssetIconConverter"/>
+
+    <DataTemplate x:Key="assetListViewNoSorting">
+        <DockPanel LastChildFill="True">
+            <TextBlock Text="{Binding }" Foreground="{StaticResource FontColor}" VerticalAlignment="Center"/>
+        </DockPanel>
+    </DataTemplate>
+    <DataTemplate x:Key="assetListViewAscendingSorting">
+        <DockPanel LastChildFill="True">
+            <TextBlock Text="{Binding }" Foreground="{StaticResource FontColor}" VerticalAlignment="Center"/>
+            <Path StrokeThickness="1" Fill="{StaticResource FontColor}" Data="M 5,5 L 10,10 L 15,5 L 5,5" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,8,0"/>
+        </DockPanel>
+    </DataTemplate>
+    <DataTemplate x:Key="assetListViewDescendingSorting">
+        <DockPanel LastChildFill="True">
+            <TextBlock Text="{Binding }" Foreground="{StaticResource FontColor}" VerticalAlignment="Center"/>
+            <Path StrokeThickness="1" Fill="{StaticResource FontColor}" Data="M 5,10 L 15,10 L 10,5 L 5,10" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,8,0"/>
+        </DockPanel>
+    </DataTemplate>
+
+    <!-- ListView Style -->
+    <Style x:Key="FastFrostyAssetListViewStyle" TargetType="{x:Type core:FrostyAssetListView}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type core:FrostyAssetListView}">
+                    <Grid x:Name="PART_ContainerGrid">
+
+                        <ListView x:Name="PART_AssetListView" 
+                                  HorizontalContentAlignment="Stretch" 
+                                  SelectionMode="Extended" 
+                                  ItemsSource="{TemplateBinding ItemsSource}" 
+                                  MaxHeight="{Binding Path=ActualHeight, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                  ScrollViewer.CanContentScroll="True"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  VirtualizingPanel.IsVirtualizing="True" 
+                                  VirtualizingPanel.VirtualizationMode="Recycling"
+                                  VirtualizingPanel.ScrollUnit="Item">
+
+                            <ListView.Template>
+                                <ControlTemplate TargetType="{x:Type ListView}">
+                                    <Border BorderThickness="{TemplateBinding BorderThickness}" 
+                                            BorderBrush="{TemplateBinding BorderBrush}" 
+                                            Background="{TemplateBinding Background}">
+                                        <DockPanel LastChildFill="True">
+
+                                            <!-- Header -->
+                                            <GridViewHeaderRowPresenter DockPanel.Dock="Top" 
+                                                        Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType={x:Type ListView}}}"
+                                                        ColumnHeaderContainerStyle="{Binding Path=View.ColumnHeaderContainerStyle, RelativeSource={RelativeSource AncestorType={x:Type ListView}}}"
+                                                        ColumnHeaderTemplate="{Binding Path=View.ColumnHeaderTemplate, RelativeSource={RelativeSource AncestorType={x:Type ListView}}}"
+                                                        ColumnHeaderTemplateSelector="{Binding Path=View.ColumnHeaderTemplateSelector, RelativeSource={RelativeSource AncestorType={x:Type ListView}}}"
+                                                        ColumnHeaderContextMenu="{Binding Path=View.ColumnHeaderContextMenu, RelativeSource={RelativeSource AncestorType={x:Type ListView}}}"
+                                                        ColumnHeaderToolTip="{Binding Path=View.ColumnHeaderToolTip, RelativeSource={RelativeSource AncestorType={x:Type ListView}}}"/>
+
+                                            <!-- Items -->
+                                            <ScrollViewer CanContentScroll="True" 
+                                                          Focusable="False" 
+                                                          HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}" 
+                                                          VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
+                                                <ItemsPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                            </ScrollViewer>
+
+                                        </DockPanel>
+                                    </Border>
+                                </ControlTemplate>
+                            </ListView.Template>
+
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem" BasedOn="{StaticResource baseListViewItemStyle}">
+                                    <Setter Property="ContextMenu" Value="{Binding Path=AssetContextMenu, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type core:FrostyAssetListView}}}"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="{x:Type ListViewItem}">
+                                                <Border x:Name="Border" Background="Transparent">
+                                                    <Border.InputBindings>
+                                                        <MouseBinding Gesture="LeftDoubleClick" Command="{Binding Path=DoubleClickCommand, RelativeSource={RelativeSource AncestorType={x:Type core:FrostyAssetListView}}}" />
+                                                    </Border.InputBindings>
+                                                    <GridViewRowPresenter VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" TargetName="Border" Value="{StaticResource SubItemHighlight}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter Property="Background" TargetName="Border" Value="{StaticResource SubItemPressed}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+
+                            <ListView.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </ListView.ItemsPanel>
+
+                            <ListView.View>
+                                <GridView>
+                                    <!-- Name Column -->
+                                    <GridViewColumn Width="{Binding Path=ActualWidth, ElementName=gridHelper1}" HeaderTemplate="{StaticResource assetListViewAscendingSorting}">
+                                        <GridViewColumn.Header>
+                                            <GridViewColumnHeader Tag="DisplayName" Content="Name"/>
+                                        </GridViewColumn.Header>
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Grid Height="22">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <Image Grid.Column="0" Width="16" Height="16" Source="{Binding Path=., Converter={StaticResource FastAssetIconConverter}}"/>
+
+                                                    <TextBlock x:Name="displayName" Grid.Column="1" Margin="6,0,0,0" Text="{Binding Path=DisplayName}" VerticalAlignment="Center" FontFamily="MS Reference Sans Serif" FontWeight="Normal"/>
+
+                                                    <TextBlock x:Name="displayPath" Grid.Column="2" Margin="6,0,0,0" VerticalAlignment="Center" FontFamily="MS Reference Sans Serif" FontWeight="Normal" Opacity="0.5" TextTrimming="CharacterEllipsis">
+                                                        <TextBlock.Text>
+                                                            <Binding Path="Path" StringFormat="({0})"/>
+                                                        </TextBlock.Text>
+                                                    </TextBlock>
+                                                </Grid>
+                                                <DataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding Path=IsModified}" Value="True">
+                                                        <Setter Property="FontWeight" TargetName="displayName" Value="Bold"/>
+                                                    </DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <!-- Type Column -->
+                                    <GridViewColumn Width="{Binding Path=ActualWidth, ElementName=gridHelper2}">
+                                        <GridViewColumn.Header>
+                                            <GridViewColumnHeader Tag="Type" Content="Type"/>
+                                        </GridViewColumn.Header>
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Grid Height="22">
+                                                    <TextBlock Text="{Binding Path=Type}" VerticalAlignment="Center" FontFamily="MS Reference Sans Serif" TextTrimming="CharacterEllipsis"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+
+                        <!-- Proportional width helpers -->
+                        <Grid Visibility="Hidden" IsHitTestVisible="False">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="3*"/>
+                                <ColumnDefinition Width="1*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid Grid.Column="0" x:Name="gridHelper1"/>
+                            <Grid Grid.Column="1" x:Name="gridHelper2"/>
+                        </Grid>
+
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Reference Tab Item -->
     <Style TargetType="{x:Type local:ReferenceTabItem}">
         <Setter Property="Template">
@@ -27,7 +196,7 @@
                         </Grid.RowDefinitions>
 
                         <!-- Backgrounds -->
-                        <Border  Grid.ColumnSpan="2" Grid.RowSpan="2" Background="{StaticResource ListBackground}" RenderOptions.EdgeMode="Aliased"/>
+                        <Border Grid.ColumnSpan="2" Grid.RowSpan="2" Background="{StaticResource ListBackground}" RenderOptions.EdgeMode="Aliased"/>
                         <Border Grid.ColumnSpan="2" Background="{StaticResource ControlBackground}" RenderOptions.EdgeMode="Aliased"/>
 
                         <!-- Titles -->
@@ -35,7 +204,7 @@
                         <TextBlock x:Name="PART_RefExplorerFromTextBlock" FontFamily="Global User Interface" Foreground="{StaticResource FontColor}" Text="" VerticalAlignment="Center" Margin="2 0 0 0" Grid.Column="1" TextTrimming="CharacterEllipsis"/>
 
                         <!-- Lists -->
-                        <core:FrostyAssetListView x:Name="PART_RefExplorerToListView" Grid.Row="1" Margin="0 0 3 0">
+                        <core:FrostyAssetListView x:Name="PART_RefExplorerToListView" Grid.Row="1" Margin="0 0 3 0" Style="{StaticResource FastFrostyAssetListViewStyle}">
                             <core:FrostyAssetListView.AssetContextMenu>
                                 <ContextMenu>
                                     <MenuItem x:Name="PART_RefExplorerToOpenItem" Header="Open asset">
@@ -47,7 +216,8 @@
                                 </ContextMenu>
                             </core:FrostyAssetListView.AssetContextMenu>
                         </core:FrostyAssetListView>
-                        <core:FrostyAssetListView x:Name="PART_RefExplorerFromListView" Grid.Column="1" Grid.Row="1">
+
+                        <core:FrostyAssetListView x:Name="PART_RefExplorerFromListView" Grid.Column="1" Grid.Row="1" Style="{StaticResource FastFrostyAssetListViewStyle}">
                             <core:FrostyAssetListView.AssetContextMenu>
                                 <ContextMenu>
                                     <MenuItem x:Name="PART_RefExplorerFromOpenItem" Header="Open asset">

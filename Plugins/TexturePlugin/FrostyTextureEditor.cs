@@ -6,7 +6,7 @@ using FrostySdk;
 using FrostySdk.IO;
 using FrostySdk.Managers;
 using FrostySdk.Resources;
-using D3D11 = SharpDX.Direct3D11;
+using D3D11 = Vortice.Direct3D11;
 using Frosty.Controls;
 using FrostySdk.Interfaces;
 using Frosty.Core.Viewport;
@@ -19,6 +19,7 @@ using Frosty.Core.Windows;
 using Frosty.Core.Screens;
 using System.Runtime.InteropServices;
 using FrostySdk.Managers.Entries;
+using Vortice.DXGI;
 
 namespace TexturePlugin
 {
@@ -49,7 +50,7 @@ namespace TexturePlugin
     public struct TextureImportOptions
     {
         public TextureType type;
-        public SharpDX.DXGI.Format format;
+        public Format format;
         public bool generateMipmaps;
         public int mipmapsFilter;
         public bool resizeTexture;
@@ -706,27 +707,27 @@ namespace TexturePlugin
                 {
                     switch(header.ExtendedHeader.dxgiFormat)
                     {
-                        case SharpDX.DXGI.Format.R32G32B32A32_Float: pixelFormat = "ARGB32F"; break;
-                        case SharpDX.DXGI.Format.R9G9B9E5_Sharedexp: pixelFormat = "R9G9B9E5F"; break;
-                        case SharpDX.DXGI.Format.R8_UNorm: pixelFormat = "L8"; break;
-                        case SharpDX.DXGI.Format.R16_UNorm: pixelFormat = "L16"; break;
-                        case SharpDX.DXGI.Format.R8G8B8A8_UNorm: pixelFormat = "ARGB8888"; break;
-                        case SharpDX.DXGI.Format.BC1_UNorm:
+                        case Format.R32G32B32A32_Float: pixelFormat = "ARGB32F"; break;
+                        case Format.R9G9B9E5_SharedExp: pixelFormat = "R9G9B9E5F"; break;
+                        case Format.R8_UNorm: pixelFormat = "L8"; break;
+                        case Format.R16_UNorm: pixelFormat = "L16"; break;
+                        case Format.R8G8B8A8_UNorm: pixelFormat = "ARGB8888"; break;
+                        case Format.BC1_UNorm:
                             pixelFormat = "BC1_UNORM";
                             if (m_textureAsset.PixelFormat.Contains("Normal") || m_textureAsset.PixelFormat.StartsWith("BC1A"))
                                 pixelFormat = m_textureAsset.PixelFormat;
                             break;
-                        case SharpDX.DXGI.Format.BC2_UNorm: pixelFormat = "BC2_UNORM"; break;
-                        case SharpDX.DXGI.Format.BC3_UNorm: pixelFormat = "BC3_UNORM"; break;
-                        case SharpDX.DXGI.Format.BC5_UNorm: pixelFormat = "NormalDXN"; break;
-                        case SharpDX.DXGI.Format.BC7_UNorm: pixelFormat = "BC7_UNORM"; break;
-                        case SharpDX.DXGI.Format.BC1_UNorm_SRgb: pixelFormat = "BC1_UNORM"; flags = TextureFlags.SrgbGamma; break;
-                        case SharpDX.DXGI.Format.BC2_UNorm_SRgb: pixelFormat = "BC2_UNORM"; flags = TextureFlags.SrgbGamma; break;
-                        case SharpDX.DXGI.Format.BC3_UNorm_SRgb:
+                        case Format.BC2_UNorm: pixelFormat = "BC2_UNORM"; break;
+                        case Format.BC3_UNorm: pixelFormat = "BC3_UNORM"; break;
+                        case Format.BC5_UNorm: pixelFormat = "NormalDXN"; break;
+                        case Format.BC7_UNorm: pixelFormat = "BC7_UNORM"; break;
+                        case Format.BC1_UNorm_SRgb: pixelFormat = "BC1_UNORM"; flags = TextureFlags.SrgbGamma; break;
+                        case Format.BC2_UNorm_SRgb: pixelFormat = "BC2_UNORM"; flags = TextureFlags.SrgbGamma; break;
+                        case Format.BC3_UNorm_SRgb:
                             pixelFormat = (m_textureAsset.PixelFormat == "BC3A_UNORM") ? m_textureAsset.PixelFormat : "BC3_UNORM";
                             flags = TextureFlags.SrgbGamma;
                             break;
-                        case SharpDX.DXGI.Format.BC7_UNorm_SRgb: pixelFormat = "BC7_UNORM"; flags = TextureFlags.SrgbGamma; break;
+                        case Format.BC7_UNorm_SRgb: pixelFormat = "BC7_UNORM"; flags = TextureFlags.SrgbGamma; break;
                     }
                 }
             }
@@ -762,45 +763,45 @@ namespace TexturePlugin
                 // All others
                 else if (header.HasExtendedHeader)
                 {
-                    if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.BC1_UNorm)
+                    if (header.ExtendedHeader.dxgiFormat == Format.BC1_UNorm)
                     {
                         pixelFormat = "BC1_UNORM";
                         if (m_textureAsset.PixelFormat == "BC1A_UNORM")
                             pixelFormat = "BC1A_UNORM";
                     }
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.BC3_UNorm)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.BC3_UNorm)
                         pixelFormat = "BC3_UNORM";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.BC4_UNorm)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.BC4_UNorm)
                         pixelFormat = "BC4_UNORM";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.BC5_UNorm)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.BC5_UNorm)
                         pixelFormat = "BC5_UNORM";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.BC1_UNorm_SRgb && m_textureAsset.PixelFormat == "BC1A_SRGB")
+                    else if (header.ExtendedHeader.dxgiFormat == Format.BC1_UNorm_SRgb && m_textureAsset.PixelFormat == "BC1A_SRGB")
                         pixelFormat = "BC1A_SRGB";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.BC1_UNorm_SRgb)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.BC1_UNorm_SRgb)
                         pixelFormat = "BC1_SRGB";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.BC3_UNorm_SRgb)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.BC3_UNorm_SRgb)
                         pixelFormat = "BC3_SRGB";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.BC6H_Uf16)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.BC6H_Uf16)
                         pixelFormat = "BC6U_FLOAT";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.BC7_UNorm)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.BC7_UNorm)
                         pixelFormat = "BC7_UNORM";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.BC7_UNorm_SRgb)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.BC7_UNorm_SRgb)
                         pixelFormat = "BC7_SRGB";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.R8_UNorm)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.R8_UNorm)
                         pixelFormat = "R8_UNORM";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.R16G16B16A16_Float)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.R16G16B16A16_Float)
                         pixelFormat = "R16G16B16A16_FLOAT";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.R32G32B32A32_Float)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.R32G32B32A32_Float)
                         pixelFormat = "R32G32B32A32_FLOAT";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.R9G9B9E5_Sharedexp)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.R9G9B9E5_SharedExp)
                         pixelFormat = "R9G9B9E5_FLOAT";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.R8G8B8A8_UNorm)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.R8G8B8A8_UNorm)
                         pixelFormat = "R8G8B8A8_UNORM";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.R8G8B8A8_UNorm_SRgb)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.R8G8B8A8_UNorm_SRgb)
                         pixelFormat = "R8G8B8A8_SRGB";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.R10G10B10A2_UNorm)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.R10G10B10A2_UNorm)
                         pixelFormat = "R10G10B10A2_UNORM";
-                    else if (header.ExtendedHeader.dxgiFormat == SharpDX.DXGI.Format.R16_UNorm)
+                    else if (header.ExtendedHeader.dxgiFormat == Format.R16_UNorm)
                     {
                         pixelFormat = "R16_UNORM";
                         if (m_textureAsset.PixelFormat == "D16_UNORM")
@@ -862,37 +863,37 @@ namespace TexturePlugin
                 case "NormalDXT1": header.ddspf.dwFourCC = 0x31545844; break;
                 case "NormalDXN": header.ddspf.dwFourCC = 0x32495441; break;
                 //case "DXT1A": header.ddspf.dwFourCC = 0x31545844; break;
-                case "BC1A_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.BC1_UNorm_SRgb; break;
+                case "BC1A_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.BC1_UNorm_SRgb; break;
                 case "BC1A_UNORM": header.ddspf.dwFourCC = 0x31545844; break;
-                case "BC1_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.BC1_UNorm_SRgb; break;
+                case "BC1_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.BC1_UNorm_SRgb; break;
                 case "BC1_UNORM": header.ddspf.dwFourCC = 0x31545844; break;
                 //case "DXT3": header.ddspf.dwFourCC = 0x33545844; break;
-                case "BC2_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.BC2_UNorm_SRgb; break;
-                case "BC3_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.BC3_UNorm_SRgb; break;
-                case "BC3A_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.BC3_UNorm_SRgb; break;
+                case "BC2_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.BC2_UNorm_SRgb; break;
+                case "BC3_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.BC3_UNorm_SRgb; break;
+                case "BC3A_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.BC3_UNorm_SRgb; break;
                 case "BC3_UNORM": header.ddspf.dwFourCC = 0x35545844; break;
                 case "BC3A_UNORM": header.ddspf.dwFourCC = 0x31495441; break;
                 case "BC4_UNORM": header.ddspf.dwFourCC = 0x31495441; break;
                 //case "DXT5": header.ddspf.dwFourCC = 0x35545844; break;
                 //case "DXT5A": header.ddspf.dwFourCC = 0x31495441; break;
                 case "BC5_UNORM": header.ddspf.dwFourCC = 0x32495441; break;
-                case "BC6U_FLOAT": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.BC6H_Uf16; break;
-                case "BC7": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.BC7_UNorm; break;
-                case "BC7_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.BC7_UNorm_SRgb; break;
-                case "BC7_UNORM": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.BC7_UNorm; break;
-                case "R8_UNORM": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R8_UNorm; break;
-                case "R16G16B16A16_FLOAT": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R16G16B16A16_Float; break;
-                case "ARGB32F": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R32G32B32A32_Float; break;
-                case "R32G32B32A32_FLOAT": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R32G32B32A32_Float; break;
-                case "R9G9B9E5F": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R9G9B9E5_Sharedexp; break;
-                case "R9G9B9E5_FLOAT": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R9G9B9E5_Sharedexp; break;
-                case "R8G8B8A8_UNORM": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R8G8B8A8_UNorm; break;
-                case "R8G8B8A8_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R8G8B8A8_UNorm_SRgb; break;
-                case "R10G10B10A2_UNORM": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R10G10B10A2_UNorm; break;
-                case "L8": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R8_UNorm; break;
-                case "L16": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R16_UNorm; break;
-                case "ARGB8888": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R8G8B8A8_UNorm; break;
-                case "D16_UNORM": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = SharpDX.DXGI.Format.R16_UNorm; break;
+                case "BC6U_FLOAT": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.BC6H_Uf16; break;
+                case "BC7": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.BC7_UNorm; break;
+                case "BC7_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.BC7_UNorm_SRgb; break;
+                case "BC7_UNORM": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.BC7_UNorm; break;
+                case "R8_UNORM": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R8_UNorm; break;
+                case "R16G16B16A16_FLOAT": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R16G16B16A16_Float; break;
+                case "ARGB32F": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R32G32B32A32_Float; break;
+                case "R32G32B32A32_FLOAT": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R32G32B32A32_Float; break;
+                case "R9G9B9E5F": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R9G9B9E5_SharedExp; break;
+                case "R9G9B9E5_FLOAT": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R9G9B9E5_SharedExp; break;
+                case "R8G8B8A8_UNORM": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R8G8B8A8_UNorm; break;
+                case "R8G8B8A8_SRGB": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R8G8B8A8_UNorm_SRgb; break;
+                case "R10G10B10A2_UNORM": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R10G10B10A2_UNorm; break;
+                case "L8": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R8_UNorm; break;
+                case "L16": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R16_UNorm; break;
+                case "ARGB8888": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R8G8B8A8_UNorm; break;
+                case "D16_UNORM": header.HasExtendedHeader = true; header.ExtendedHeader.dxgiFormat = Format.R16_UNorm; break;
                 default: header.ddspf.dwFourCC = 0x00000000; break;
             }
 

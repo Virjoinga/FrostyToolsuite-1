@@ -5,7 +5,7 @@ using System.Windows.Data;
 using System.Globalization;
 using FrostySdk.Attributes;
 using Frosty.Core.Viewport;
-using SharpDX;
+using System.Numerics;
 
 namespace Frosty.Core.Controls.Editors
 {
@@ -75,7 +75,7 @@ namespace Frosty.Core.Controls.Editors
             {
                 // first time convert from raw matrix values
 
-                Matrix matrix = new Matrix(
+                Matrix4x4 matrix = new Matrix4x4(
                         obj.right.x, obj.right.y, obj.right.z, 0.0f,
                         obj.up.x, obj.up.y, obj.up.z, 0.0f,
                         obj.forward.x, obj.forward.y, obj.forward.z, 0.0f,
@@ -83,7 +83,7 @@ namespace Frosty.Core.Controls.Editors
                         );
 
 
-                matrix.Decompose(out Vector3 scale, out Quaternion rotation, out Vector3 translation);
+                Matrix4x4.Decompose(matrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation);
                 Vector3 euler = SharpDXUtils.ExtractEulerAngles(matrix);
 
                 trns.Translation.x = translation.X;
@@ -140,8 +140,8 @@ namespace Frosty.Core.Controls.Editors
             // then convert...
 
             float val = (float)(Math.PI / 180.0);
-            Matrix m = Matrix.RotationX(obj.Rotation.x * val) * Matrix.RotationY(obj.Rotation.y * val) * Matrix.RotationZ(obj.Rotation.z * val);
-            m = m * Matrix.Scaling(obj.Scale.x, obj.Scale.y, obj.Scale.z);
+            Matrix4x4 m = Matrix4x4.CreateRotationX(obj.Rotation.x * val) * Matrix4x4.CreateRotationY(obj.Rotation.y * val) * Matrix4x4.CreateRotationZ(obj.Rotation.z * val);
+            m = m * Matrix4x4.CreateScale(obj.Scale.x, obj.Scale.y, obj.Scale.z);
 
             trns.trans.x = obj.Translation.x;
             trns.trans.y = obj.Translation.y;

@@ -1,13 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using FrostySdk.IO;
-using SharpDX;
-using D3D11 = SharpDX.Direct3D11;
-using System.Runtime.InteropServices;
-using System.IO;
+﻿using FrostySdk.IO;
 using FrostySdk.Resources;
-using SharpDX.Direct3D;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Windows;
+using Vortice;
+using Vortice.Direct3D;
+using Vortice.Direct3D11;
+using Vortice.DXGI;
+using Vortice.Mathematics;
+using D3D11 = Vortice.Direct3D11;
 
 namespace Frosty.Core.Viewport
 {
@@ -15,7 +19,7 @@ namespace Frosty.Core.Viewport
     {
         private class Hashing
         {
-            public static uint Hash(D3D11.SamplerStateDescription desc)
+            public static uint Hash(D3D11.SamplerDescription desc)
             {
                 uint hash = 2166136261;
                 hash = (hash * 16777619) ^ (uint)((int)desc.AddressU).GetHashCode();
@@ -25,66 +29,68 @@ namespace Frosty.Core.Viewport
                 hash = (hash * 16777619) ^ (uint)desc.BorderColor.G.GetHashCode();
                 hash = (hash * 16777619) ^ (uint)desc.BorderColor.B.GetHashCode();
                 hash = (hash * 16777619) ^ (uint)desc.BorderColor.A.GetHashCode();
-                hash = (hash * 16777619) ^ (uint)((int)desc.ComparisonFunction).GetHashCode();
+                hash = (hash * 16777619) ^ (uint)((int)desc.ComparisonFunc).GetHashCode();
                 hash = (hash * 16777619) ^ (uint)((int)desc.Filter).GetHashCode();
-                hash = (hash * 16777619) ^ (uint)desc.MaximumAnisotropy.GetHashCode();
-                hash = (hash * 16777619) ^ (uint)desc.MaximumLod.GetHashCode();
-                hash = (hash * 16777619) ^ (uint)desc.MinimumLod.GetHashCode();
-                hash = (hash * 16777619) ^ (uint)desc.MipLodBias.GetHashCode();
+                hash = (hash * 16777619) ^ (uint)desc.MaxAnisotropy.GetHashCode();
+                hash = (hash * 16777619) ^ (uint)desc.MaxLOD.GetHashCode();
+                hash = (hash * 16777619) ^ (uint)desc.MinLOD.GetHashCode();
+                hash = (hash * 16777619) ^ (uint)desc.MipLODBias.GetHashCode();
                 return hash;
             }
 
-            public static uint Hash(D3D11.RasterizerStateDescription desc)
+            public static uint Hash(D3D11.RasterizerDescription desc)
             {
                 uint hash = 2166136261;
                 hash = (hash * 16777619) ^ (uint)((int)desc.CullMode).GetHashCode();
                 hash = (hash * 16777619) ^ (uint)desc.DepthBias.GetHashCode();
                 hash = (hash * 16777619) ^ (uint)desc.DepthBiasClamp.GetHashCode();
                 hash = (hash * 16777619) ^ (uint)((int)desc.FillMode).GetHashCode();
-                hash = (hash * 16777619) ^ (uint)desc.IsAntialiasedLineEnabled.GetHashCode();
-                hash = (hash * 16777619) ^ (uint)desc.IsDepthClipEnabled.GetHashCode();
-                hash = (hash * 16777619) ^ (uint)desc.IsFrontCounterClockwise.GetHashCode();
-                hash = (hash * 16777619) ^ (uint)desc.IsMultisampleEnabled.GetHashCode();
-                hash = (hash * 16777619) ^ (uint)desc.IsScissorEnabled.GetHashCode();
+                hash = (hash * 16777619) ^ (uint)desc.AntialiasedLineEnable.GetHashCode();
+                hash = (hash * 16777619) ^ (uint)desc.DepthClipEnable.GetHashCode();
+                hash = (hash * 16777619) ^ (uint)desc.FrontCounterClockwise.GetHashCode();
+                hash = (hash * 16777619) ^ (uint)desc.MultisampleEnable.GetHashCode();
+                hash = (hash * 16777619) ^ (uint)desc.ScissorEnable.GetHashCode();
                 hash = (hash * 16777619) ^ (uint)desc.SlopeScaledDepthBias.GetHashCode();
                 return hash;
             }
 
-            public static uint Hash(D3D11.DepthStencilStateDescription desc)
+            public static uint Hash(D3D11.DepthStencilDescription desc)
             {
                 uint hash = 2166136261;
-                hash = (hash * 16777619) ^ (uint)((int)desc.BackFace.Comparison).GetHashCode();
-                hash = (hash * 16777619) ^ (uint)((int)desc.BackFace.DepthFailOperation).GetHashCode();
-                hash = (hash * 16777619) ^ (uint)((int)desc.BackFace.FailOperation).GetHashCode();
-                hash = (hash * 16777619) ^ (uint)((int)desc.BackFace.PassOperation).GetHashCode();
-                hash = (hash * 16777619) ^ (uint)((int)desc.FrontFace.Comparison).GetHashCode();
-                hash = (hash * 16777619) ^ (uint)((int)desc.FrontFace.DepthFailOperation).GetHashCode();
-                hash = (hash * 16777619) ^ (uint)((int)desc.FrontFace.FailOperation).GetHashCode();
-                hash = (hash * 16777619) ^ (uint)((int)desc.FrontFace.PassOperation).GetHashCode();
-                hash = (hash * 16777619) ^ (uint)((int)desc.DepthComparison).GetHashCode();
+                hash = (hash * 16777619) ^ (uint)((int)desc.BackFace.StencilFunc).GetHashCode();
+                hash = (hash * 16777619) ^ (uint)((int)desc.BackFace.StencilDepthFailOp).GetHashCode();
+                hash = (hash * 16777619) ^ (uint)((int)desc.BackFace.StencilFailOp).GetHashCode();
+                hash = (hash * 16777619) ^ (uint)((int)desc.BackFace.StencilPassOp).GetHashCode();
+                hash = (hash * 16777619) ^ (uint)((int)desc.FrontFace.StencilFunc).GetHashCode();
+                hash = (hash * 16777619) ^ (uint)((int)desc.FrontFace.StencilDepthFailOp).GetHashCode();
+                hash = (hash * 16777619) ^ (uint)((int)desc.FrontFace.StencilFailOp).GetHashCode();
+                hash = (hash * 16777619) ^ (uint)((int)desc.FrontFace.StencilPassOp).GetHashCode();
+                hash = (hash * 16777619) ^ (uint)((int)desc.DepthFunc).GetHashCode();
                 hash = (hash * 16777619) ^ (uint)((int)desc.DepthWriteMask).GetHashCode();
-                hash = (hash * 16777619) ^ (uint)desc.IsDepthEnabled.GetHashCode();
-                hash = (hash * 16777619) ^ (uint)desc.IsStencilEnabled.GetHashCode();
+                hash = (hash * 16777619) ^ (uint)desc.DepthEnable.GetHashCode();
+                hash = (hash * 16777619) ^ (uint)desc.StencilEnable.GetHashCode();
                 hash = (hash * 16777619) ^ (uint)desc.StencilReadMask.GetHashCode();
                 hash = (hash * 16777619) ^ (uint)desc.StencilWriteMask.GetHashCode();
                 return hash;
             }
-            
-            public static uint Hash(D3D11.BlendStateDescription desc)
+
+            public static unsafe uint Hash(D3D11.BlendDescription desc)
             {
                 uint hash = 2166136261;
                 hash = (hash * 16777619) ^ (uint)desc.AlphaToCoverageEnable.GetHashCode();
                 hash = (hash * 16777619) ^ (uint)desc.IndependentBlendEnable.GetHashCode();
-                foreach (D3D11.RenderTargetBlendDescription rtDesc in desc.RenderTarget)
+                const int DESC_COUNT = 8;
+                for (int i = 0; i < DESC_COUNT; i++)
                 {
-                    hash = (hash * 16777619) ^ (uint)((int)rtDesc.AlphaBlendOperation).GetHashCode();
+                    RenderTargetBlendDescription rtDesc = desc.RenderTarget[i];
+                    hash = (hash * 16777619) ^ (uint)((int)rtDesc.BlendOperationAlpha).GetHashCode();
                     hash = (hash * 16777619) ^ (uint)((int)rtDesc.BlendOperation).GetHashCode();
-                    hash = (hash * 16777619) ^ (uint)((int)rtDesc.DestinationAlphaBlend).GetHashCode();
+                    hash = (hash * 16777619) ^ (uint)((int)rtDesc.DestinationBlendAlpha).GetHashCode();
                     hash = (hash * 16777619) ^ (uint)((int)rtDesc.DestinationBlend).GetHashCode();
                     hash = (hash * 16777619) ^ (uint)((int)rtDesc.RenderTargetWriteMask).GetHashCode();
-                    hash = (hash * 16777619) ^ (uint)((int)rtDesc.SourceAlphaBlend).GetHashCode();
+                    hash = (hash * 16777619) ^ (uint)((int)rtDesc.SourceBlendAlpha).GetHashCode();
                     hash = (hash * 16777619) ^ (uint)((int)rtDesc.SourceBlend).GetHashCode();
-                    hash = (hash * 16777619) ^ (uint)rtDesc.IsBlendEnabled.GetHashCode();
+                    hash = (hash * 16777619) ^ (uint)rtDesc.BlendEnable.GetHashCode();
                 }
                 return hash;
             }
@@ -99,21 +105,21 @@ namespace Frosty.Core.Viewport
         }
         #endregion
 
-        private D3D11.Device device;
-        private D3D11.DeviceDebug debugDevice;
+        private D3D11.ID3D11Device device;
+        private D3D11.Debug.ID3D11Debug debugDevice;
 
         // state lists
-        private Dictionary<uint, D3D11.SamplerState> samplerStates = new Dictionary<uint, D3D11.SamplerState>();
-        private Dictionary<uint, D3D11.DepthStencilState> depthStencilStates = new Dictionary<uint, D3D11.DepthStencilState>();
-        private Dictionary<uint, D3D11.BlendState> blendStates = new Dictionary<uint, D3D11.BlendState>();
-        private Dictionary<uint, D3D11.RasterizerState> rasterizerStates = new Dictionary<uint, D3D11.RasterizerState>();
+        private Dictionary<uint, D3D11.ID3D11SamplerState> samplerStates = new();
+        private Dictionary<uint, D3D11.ID3D11DepthStencilState> depthStencilStates = new();
+        private Dictionary<uint, D3D11.ID3D11BlendState> blendStates = new();
+        private Dictionary<uint, D3D11.ID3D11RasterizerState> rasterizerStates = new();
 
         public Controls.FrostyViewport CurrentViewport { get; set; }
 
         /// <summary>
         /// Returns the global D3D11 device (creates it if necessary)
         /// </summary>
-        public D3D11.Device GetDevice()
+        public D3D11.ID3D11Device GetDevice()
         {
             if (device == null)
             {
@@ -122,21 +128,25 @@ namespace Frosty.Core.Viewport
                 flags |= D3D11.DeviceCreationFlags.Debug;
 #endif
 
-                int adapterIndex = Config.Get<int>("RenderAdapterIndex", 0);
-                SharpDX.DXGI.Factory factory = new SharpDX.DXGI.Factory1();
-                SharpDX.DXGI.Adapter adapter = factory.GetAdapter(adapterIndex);
+                var adapterIndex = Config.Get<uint>("RenderAdapterIndex", 0);
+                //int adapterIndex = Config.Get<int>("Render", "AdapterIndex", 0);
+                DXGI.CreateDXGIFactory1(out IDXGIFactory1 factory);
+                factory.EnumAdapters(adapterIndex, out IDXGIAdapter adapter);
 
                 App.Logger.Log("Display Adapters:");
-                int index = 0;
+                uint index = 0;
 
-                foreach (var currentAdapter in factory.Adapters)
+                while (factory.EnumAdapters(index, out IDXGIAdapter currentAdapter) != Vortice.DXGI.ResultCode.NotFound)
                 {
                     App.Logger.Log(string.Format("  {0}: {1}", index++, currentAdapter.Description.Description));
                 }
 
-                device = new D3D11.Device(adapter, flags, FeatureLevel.Level_11_0);
+                D3D11.D3D11.D3D11CreateDevice(adapter, DriverType.Unknown, flags, new Vortice.Direct3D.FeatureLevel[]
+                {
+                    Vortice.Direct3D.FeatureLevel.Level_11_0
+                }, out device);
 #if DEBUG
-                debugDevice = new D3D11.DeviceDebug(device);
+                debugDevice = device.QueryInterface<D3D11.Debug.ID3D11Debug>();
 #endif
                 factory.Dispose();
                 App.Logger.Log(string.Format("Selected D3D11 Adapter {0}: {1}", adapterIndex, adapter.Description.Description));
@@ -148,35 +158,35 @@ namespace Frosty.Core.Viewport
             return device;
         }
 
-        public D3D11.SamplerState GetOrCreateSamplerState(D3D11.SamplerStateDescription desc)
+        public D3D11.ID3D11SamplerState GetOrCreateSamplerState(D3D11.SamplerDescription desc)
         {
             uint hash = Hashing.Hash(desc);
             if (!samplerStates.ContainsKey(hash))
-                samplerStates.Add(hash, new D3D11.SamplerState(GetDevice(), desc));
+                samplerStates.Add(hash, GetDevice().CreateSamplerState(desc));
             return samplerStates[hash];
         }
 
-        public D3D11.DepthStencilState GetOrCreateDepthStencilState(D3D11.DepthStencilStateDescription desc)
+        public D3D11.ID3D11DepthStencilState GetOrCreateDepthStencilState(D3D11.DepthStencilDescription desc)
         {
             uint hash = Hashing.Hash(desc);
             if (!depthStencilStates.ContainsKey(hash))
-                depthStencilStates.Add(hash, new D3D11.DepthStencilState(GetDevice(), desc));
+                depthStencilStates.Add(hash, GetDevice().CreateDepthStencilState(desc));
             return depthStencilStates[hash];
         }
 
-        public D3D11.BlendState GetOrCreateBlendState(D3D11.BlendStateDescription desc)
+        public D3D11.ID3D11BlendState GetOrCreateBlendState(D3D11.BlendDescription desc)
         {
             uint hash = Hashing.Hash(desc);
             if (!blendStates.ContainsKey(hash))
-                blendStates.Add(hash, new D3D11.BlendState(GetDevice(), desc));
+                blendStates.Add(hash, GetDevice().CreateBlendState(desc));
             return blendStates[hash];
         }
 
-        public D3D11.RasterizerState GetOrCreateRasterizerState(D3D11.RasterizerStateDescription desc)
+        public D3D11.ID3D11RasterizerState GetOrCreateRasterizerState(D3D11.RasterizerDescription desc)
         {
             uint hash = Hashing.Hash(desc);
             if (!rasterizerStates.ContainsKey(hash))
-                rasterizerStates.Add(hash, new D3D11.RasterizerState(GetDevice(), desc));
+                rasterizerStates.Add(hash, GetDevice().CreateRasterizerState(desc));
             return rasterizerStates[hash];
         }
 
@@ -197,7 +207,7 @@ namespace Frosty.Core.Viewport
             device = null;
 
 #if DEBUG
-            debugDevice.ReportLiveDeviceObjects(D3D11.ReportingLevel.Detail | D3D11.ReportingLevel.IgnoreInternal);
+            debugDevice.ReportLiveDeviceObjects(D3D11.Debug.ReportLiveDeviceObjectFlags.Detail | D3D11.Debug.ReportLiveDeviceObjectFlags.IgnoreInternal);
             debugDevice.Dispose();
 #endif
         }
@@ -205,27 +215,27 @@ namespace Frosty.Core.Viewport
 
     public class D3DUtils
     {
-        public static D3D11.SamplerState CreateSamplerState(D3D11.SamplerStateDescription desc) { return FrostyDeviceManager.Current.GetOrCreateSamplerState(desc); }
-        public static D3D11.BlendState CreateBlendState(D3D11.BlendStateDescription desc) { return FrostyDeviceManager.Current.GetOrCreateBlendState(desc); }
-        public static D3D11.RasterizerState CreateRasterizerState(D3D11.RasterizerStateDescription desc) { return FrostyDeviceManager.Current.GetOrCreateRasterizerState(desc); }
-        public static D3D11.DepthStencilState CreateDepthStencilState(D3D11.DepthStencilStateDescription desc) { return FrostyDeviceManager.Current.GetOrCreateDepthStencilState(desc); }
+        public static D3D11.ID3D11SamplerState CreateSamplerState(D3D11.SamplerDescription desc) { return FrostyDeviceManager.Current.GetOrCreateSamplerState(desc); }
+        public static D3D11.ID3D11BlendState CreateBlendState(D3D11.BlendDescription desc) { return FrostyDeviceManager.Current.GetOrCreateBlendState(desc); }
+        public static D3D11.ID3D11RasterizerState CreateRasterizerState(D3D11.RasterizerDescription desc) { return FrostyDeviceManager.Current.GetOrCreateRasterizerState(desc); }
+        public static D3D11.ID3D11DepthStencilState CreateDepthStencilState(D3D11.DepthStencilDescription desc) { return FrostyDeviceManager.Current.GetOrCreateDepthStencilState(desc); }
 
-        public static D3D11.DepthStencilState CreateDepthStencilState(
+        public static D3D11.ID3D11DepthStencilState CreateDepthStencilState(
             bool depthEnabled = true,
             D3D11.DepthWriteMask depthWriteMask = D3D11.DepthWriteMask.All,
-            D3D11.Comparison depthComparison = D3D11.Comparison.Less,
+            D3D11.ComparisonFunction depthComparison = D3D11.ComparisonFunction.Less,
             bool stencilEnabled = false,
             byte stencilReadMask = 0xFF,
             byte stencilWriteMask = 0xFF,
             D3D11.DepthStencilOperationDescription? frontFace = null,
             D3D11.DepthStencilOperationDescription? backFace = null)
         {
-            D3D11.DepthStencilStateDescription desc = new D3D11.DepthStencilStateDescription()
+            D3D11.DepthStencilDescription desc = new()
             {
-                IsDepthEnabled = depthEnabled,
+                DepthEnable = depthEnabled,
                 DepthWriteMask = depthWriteMask,
-                DepthComparison = depthComparison,
-                IsStencilEnabled = stencilEnabled,
+                DepthFunc = depthComparison,
+                StencilEnable = stencilEnabled,
                 StencilReadMask = stencilReadMask,
                 StencilWriteMask = stencilWriteMask
             };
@@ -237,36 +247,36 @@ namespace Frosty.Core.Viewport
             return CreateDepthStencilState(desc);
         }
 
-        public static D3D11.SamplerState CreateSamplerState(
+        public static D3D11.ID3D11SamplerState CreateSamplerState(
             D3D11.TextureAddressMode address = D3D11.TextureAddressMode.Wrap,
             D3D11.TextureAddressMode addressU = 0,
             D3D11.TextureAddressMode addressV = 0,
             D3D11.TextureAddressMode addressW = 0,
             Color? borderColor = null,
-            D3D11.Comparison comparisonFunc = D3D11.Comparison.Always,
+            D3D11.ComparisonFunction comparisonFunc = D3D11.ComparisonFunction.Always,
             D3D11.Filter filter = D3D11.Filter.MinMagMipLinear,
             int maxAniso = 16,
             float maxLod = 20,
             float minLod = 0,
             float mipLodBias = 0)
         {
-            D3D11.SamplerStateDescription desc = new D3D11.SamplerStateDescription()
+            D3D11.SamplerDescription desc = new()
             {
                 AddressU = (addressU != 0) ? addressU : address,
                 AddressV = (addressV != 0) ? addressV : address,
                 AddressW = (addressW != 0) ? addressW : address,
-                BorderColor = (borderColor.HasValue) ? borderColor.Value : Color.Black,
-                ComparisonFunction = comparisonFunc,
+                BorderColor = (borderColor.HasValue) ? borderColor.Value : Colors.Black,
+                ComparisonFunc = comparisonFunc,
                 Filter = filter,
-                MaximumAnisotropy = maxAniso,
-                MaximumLod = maxLod,
-                MinimumLod = minLod,
-                MipLodBias = mipLodBias
+                MaxAnisotropy = (uint)(maxAniso),
+                MaxLOD = maxLod,
+                MinLOD = minLod,
+                MipLODBias = mipLodBias
             };
             return CreateSamplerState(desc);
         }
 
-        public static D3D11.RasterizerState CreateRasterizerState(
+        public static D3D11.ID3D11RasterizerState CreateRasterizerState(
             D3D11.CullMode cullMode = D3D11.CullMode.Back,
             D3D11.FillMode fillMode = D3D11.FillMode.Solid,
             bool antialiasedLines = false,
@@ -278,17 +288,17 @@ namespace Frosty.Core.Viewport
             float depthBiasClamp = 0.0f,
             float slopeScaledDepthBias = 0.0f)
         {
-            D3D11.RasterizerStateDescription desc = new D3D11.RasterizerStateDescription()
+            D3D11.RasterizerDescription desc = new()
             {
                 CullMode = cullMode,
                 DepthBias = depthBias,
                 DepthBiasClamp = depthBiasClamp,
                 FillMode = fillMode,
-                IsAntialiasedLineEnabled = antialiasedLines,
-                IsDepthClipEnabled = depthClip,
-                IsFrontCounterClockwise = frontCounterClockwise,
-                IsMultisampleEnabled = multisampled,
-                IsScissorEnabled = scissor,
+                AntialiasedLineEnable = antialiasedLines,
+                DepthClipEnable = depthClip,
+                FrontCounterClockwise = frontCounterClockwise,
+                MultisampleEnable = multisampled,
+                ScissorEnable = scissor,
                 SlopeScaledDepthBias = slopeScaledDepthBias
             };
             return CreateRasterizerState(desc);
@@ -296,37 +306,37 @@ namespace Frosty.Core.Viewport
 
         public static D3D11.RenderTargetBlendDescription CreateBlendStateRenderTarget(bool alphaBlend = false)
         {
-            D3D11.RenderTargetBlendDescription rtDesc = new D3D11.RenderTargetBlendDescription()
+            D3D11.RenderTargetBlendDescription rtDesc = new()
             {
-                IsBlendEnabled = false,
-                SourceBlend = D3D11.BlendOption.One,
-                DestinationBlend = D3D11.BlendOption.Zero,
+                BlendEnable = false,
+                SourceBlend = D3D11.Blend.One,
+                DestinationBlend = D3D11.Blend.Zero,
                 BlendOperation = D3D11.BlendOperation.Add,
-                SourceAlphaBlend = D3D11.BlendOption.One,
-                DestinationAlphaBlend = D3D11.BlendOption.Zero,
-                AlphaBlendOperation = D3D11.BlendOperation.Add,
-                RenderTargetWriteMask = D3D11.ColorWriteMaskFlags.All
+                SourceBlendAlpha = D3D11.Blend.One,
+                DestinationBlendAlpha = D3D11.Blend.Zero,
+                BlendOperationAlpha = D3D11.BlendOperation.Add,
+                RenderTargetWriteMask = D3D11.ColorWriteEnable.All
             };
             if (alphaBlend)
             {
-                rtDesc.SourceBlend = D3D11.BlendOption.SourceAlpha;
-                rtDesc.DestinationBlend = D3D11.BlendOption.InverseSourceAlpha;
+                rtDesc.SourceBlend = D3D11.Blend.SourceAlpha;
+                rtDesc.DestinationBlend = D3D11.Blend.InverseSourceAlpha;
                 rtDesc.BlendOperation = D3D11.BlendOperation.Add;
-                rtDesc.SourceAlphaBlend = D3D11.BlendOption.One;
-                rtDesc.DestinationAlphaBlend = D3D11.BlendOption.One;
-                rtDesc.AlphaBlendOperation = D3D11.BlendOperation.Add;
+                rtDesc.SourceBlendAlpha = D3D11.Blend.One;
+                rtDesc.DestinationBlendAlpha = D3D11.Blend.One;
+                rtDesc.BlendOperationAlpha = D3D11.BlendOperation.Add;
             }
             return rtDesc;
         }
 
-        public static D3D11.BlendState CreateBlendState(
+        public static D3D11.ID3D11BlendState CreateBlendState(
             params D3D11.RenderTargetBlendDescription[] targets)
         {
-            D3D11.BlendStateDescription desc = new D3D11.BlendStateDescription {IndependentBlendEnable = targets.Length > 1};
+            D3D11.BlendDescription desc = new() { IndependentBlendEnable = targets.Length > 1 };
             for (int i = 0; i < targets.Length; i++)
             {
                 desc.RenderTarget[i] = targets[i];
-                desc.RenderTarget[i].IsBlendEnabled = true;
+                desc.RenderTarget[i].BlendEnable = true;
             }
             return CreateBlendState(desc);
         }
@@ -335,10 +345,10 @@ namespace Frosty.Core.Viewport
         /// 
         /// </summary>
         /// <param name="name"></param>
-        public static void BeginPerfEvent(D3D11.DeviceContext context, string name)
+        public static void BeginPerfEvent(D3D11.ID3D11DeviceContext context, string name)
         {
 #if FROSTY_DEVELOPER
-            D3D11.UserDefinedAnnotation annotation = context.QueryInterface<D3D11.UserDefinedAnnotation>();
+            D3D11.ID3DUserDefinedAnnotation annotation = context.QueryInterface<D3D11.ID3DUserDefinedAnnotation>();
             annotation?.BeginEvent(name);
 #endif
         }
@@ -346,10 +356,10 @@ namespace Frosty.Core.Viewport
         /// <summary>
         /// 
         /// </summary>
-        public static void EndPerfEvent(D3D11.DeviceContext context)
+        public static void EndPerfEvent(D3D11.ID3D11DeviceContext context)
         {
 #if FROSTY_DEVELOPER
-            D3D11.UserDefinedAnnotation annotation = context.QueryInterface<D3D11.UserDefinedAnnotation>();
+            D3D11.ID3DUserDefinedAnnotation annotation = context.QueryInterface<D3D11.ID3DUserDefinedAnnotation>();
             annotation?.EndEvent();
 #endif
         }
@@ -408,7 +418,7 @@ namespace Frosty.Core.Viewport
 
         public struct DDSHeaderDX10
         {
-            public SharpDX.DXGI.Format dxgiFormat;
+            public Vortice.DXGI.Format dxgiFormat;
             public D3D11.ResourceDimension resourceDimension;
             public uint miscFlag;
             public uint arraySize;
@@ -533,7 +543,7 @@ namespace Frosty.Core.Viewport
                 if (ddspf.dwFourCC == 0x30315844)
                 {
                     HasExtendedHeader = true;
-                    ExtendedHeader.dxgiFormat = (SharpDX.DXGI.Format)reader.ReadUInt();
+                    ExtendedHeader.dxgiFormat = (Vortice.DXGI.Format)reader.ReadUInt();
                     ExtendedHeader.resourceDimension = (D3D11.ResourceDimension)reader.ReadUInt();
                     ExtendedHeader.miscFlag = reader.ReadUInt();
                     ExtendedHeader.arraySize = reader.ReadUInt();
@@ -547,7 +557,7 @@ namespace Frosty.Core.Viewport
 
 
         #region -- Texture Loading --
-        public static SharpDX.DXGI.Format ToTextureFormat(string pixelFormat, bool bLegacySrgb = false)
+        public static Vortice.DXGI.Format ToTextureFormat(string pixelFormat, bool bLegacySrgb = false)
         {
             if (bLegacySrgb)
             {
@@ -556,49 +566,49 @@ namespace Frosty.Core.Viewport
             }
             switch (pixelFormat)
             {
-                //case "DXT1": return SharpDX.DXGI.Format.BC1_UNorm;
-                case "NormalDXT1": return SharpDX.DXGI.Format.BC1_Typeless;
-                case "NormalDXN": return SharpDX.DXGI.Format.BC5_Typeless;
-                //case "DXT1A": return SharpDX.DXGI.Format.BC1_UNorm;
-                case "BC1A_SRGB": return SharpDX.DXGI.Format.BC1_Typeless;
-                case "BC1A_UNORM": return SharpDX.DXGI.Format.BC1_Typeless;
-                case "BC1_SRGB": return SharpDX.DXGI.Format.BC1_Typeless;
-                case "BC1_UNORM": return SharpDX.DXGI.Format.BC1_Typeless;
-                case "BC2_SRGB": return SharpDX.DXGI.Format.BC2_Typeless;
-                case "BC2_UNORM": return SharpDX.DXGI.Format.BC2_Typeless;
-                //case "DXT3": return SharpDX.DXGI.Format.BC2_UNorm;
-                case "BC3_SRGB": return SharpDX.DXGI.Format.BC3_Typeless;
-                case "BC3_UNORM": return SharpDX.DXGI.Format.BC3_Typeless;
-                case "BC3A_UNORM": return SharpDX.DXGI.Format.BC3_Typeless;
-                case "BC3A_SRGB": return SharpDX.DXGI.Format.BC3_Typeless;
-                case "BC4_UNORM": return SharpDX.DXGI.Format.BC4_Typeless;
-                //case "DXT5": return SharpDX.DXGI.Format.BC3_UNorm;
-                //case "DXT5A": return SharpDX.DXGI.Format.BC3_UNorm;
-                case "BC5_UNORM": return SharpDX.DXGI.Format.BC5_Typeless;
-                case "BC6U_FLOAT": return SharpDX.DXGI.Format.BC6H_Uf16;
-                case "BC7": return SharpDX.DXGI.Format.BC7_Typeless;
-                case "BC7_SRGB": return SharpDX.DXGI.Format.BC7_Typeless;
-                case "BC7_UNORM": return SharpDX.DXGI.Format.BC7_Typeless;
-                case "R8_UNORM": return SharpDX.DXGI.Format.R8_Typeless;
-                case "R16G16B16A16_FLOAT": return SharpDX.DXGI.Format.R16G16B16A16_Float;
-                case "ARGB32F": return SharpDX.DXGI.Format.R32G32B32A32_Float;
-                case "R32G32B32A32_FLOAT": return SharpDX.DXGI.Format.R32G32B32A32_Float;
-                case "R9G9B9E5F": return SharpDX.DXGI.Format.R9G9B9E5_Sharedexp;
-                case "R9G9B9E5_FLOAT": return SharpDX.DXGI.Format.R9G9B9E5_Sharedexp;
-                case "R8G8B8A8_UNORM": return SharpDX.DXGI.Format.R8G8B8A8_Typeless;
-                case "R8G8B8A8_SRGB": return SharpDX.DXGI.Format.R8G8B8A8_Typeless;
-                case "B8G8R8A8_UNORM": return SharpDX.DXGI.Format.B8G8R8A8_Typeless;
-                case "R10G10B10A2_UNORM": return SharpDX.DXGI.Format.R10G10B10A2_Typeless;
-                case "L8": return SharpDX.DXGI.Format.R8_Typeless;
-                case "L16": return SharpDX.DXGI.Format.R16_Typeless;
-                case "ARGB8888": return SharpDX.DXGI.Format.R8G8B8A8_Typeless;
-                case "R16G16_UNORM": return SharpDX.DXGI.Format.R16G16_Typeless;
-                case "D16_UNORM": return SharpDX.DXGI.Format.R16_UNorm;
-                default: return SharpDX.DXGI.Format.Unknown;
+                //case "DXT1": return Vortice.DXGI.Format.BC1_UNorm;
+                case "NormalDXT1": return Vortice.DXGI.Format.BC1_Typeless;
+                case "NormalDXN": return Vortice.DXGI.Format.BC5_Typeless;
+                //case "DXT1A": return Vortice.DXGI.Format.BC1_UNorm;
+                case "BC1A_SRGB": return Vortice.DXGI.Format.BC1_Typeless;
+                case "BC1A_UNORM": return Vortice.DXGI.Format.BC1_Typeless;
+                case "BC1_SRGB": return Vortice.DXGI.Format.BC1_Typeless;
+                case "BC1_UNORM": return Vortice.DXGI.Format.BC1_Typeless;
+                case "BC2_SRGB": return Vortice.DXGI.Format.BC2_Typeless;
+                case "BC2_UNORM": return Vortice.DXGI.Format.BC2_Typeless;
+                //case "DXT3": return Vortice.DXGI.Format.BC2_UNorm;
+                case "BC3_SRGB": return Vortice.DXGI.Format.BC3_Typeless;
+                case "BC3_UNORM": return Vortice.DXGI.Format.BC3_Typeless;
+                case "BC3A_UNORM": return Vortice.DXGI.Format.BC3_Typeless;
+                case "BC3A_SRGB": return Vortice.DXGI.Format.BC3_Typeless;
+                case "BC4_UNORM": return Vortice.DXGI.Format.BC4_Typeless;
+                //case "DXT5": return Vortice.DXGI.Format.BC3_UNorm;
+                //case "DXT5A": return Vortice.DXGI.Format.BC3_UNorm;
+                case "BC5_UNORM": return Vortice.DXGI.Format.BC5_Typeless;
+                case "BC6U_FLOAT": return Vortice.DXGI.Format.BC6H_Uf16;
+                case "BC7": return Vortice.DXGI.Format.BC7_Typeless;
+                case "BC7_SRGB": return Vortice.DXGI.Format.BC7_Typeless;
+                case "BC7_UNORM": return Vortice.DXGI.Format.BC7_Typeless;
+                case "R8_UNORM": return Vortice.DXGI.Format.R8_Typeless;
+                case "R16G16B16A16_FLOAT": return Vortice.DXGI.Format.R16G16B16A16_Float;
+                case "ARGB32F": return Vortice.DXGI.Format.R32G32B32A32_Float;
+                case "R32G32B32A32_FLOAT": return Vortice.DXGI.Format.R32G32B32A32_Float;
+                case "R9G9B9E5F": return Vortice.DXGI.Format.R9G9B9E5_SharedExp;
+                case "R9G9B9E5_FLOAT": return Vortice.DXGI.Format.R9G9B9E5_SharedExp;
+                case "R8G8B8A8_UNORM": return Vortice.DXGI.Format.R8G8B8A8_Typeless;
+                case "R8G8B8A8_SRGB": return Vortice.DXGI.Format.R8G8B8A8_Typeless;
+                case "B8G8R8A8_UNORM": return Vortice.DXGI.Format.B8G8R8A8_Typeless;
+                case "R10G10B10A2_UNORM": return Vortice.DXGI.Format.R10G10B10A2_Typeless;
+                case "L8": return Vortice.DXGI.Format.R8_Typeless;
+                case "L16": return Vortice.DXGI.Format.R16_Typeless;
+                case "ARGB8888": return Vortice.DXGI.Format.R8G8B8A8_Typeless;
+                case "R16G16_UNORM": return Vortice.DXGI.Format.R16G16_Typeless;
+                case "D16_UNORM": return Vortice.DXGI.Format.R16_UNorm;
+                default: return Vortice.DXGI.Format.Unknown;
             }
         }
 
-        public static SharpDX.DXGI.Format ToShaderFormat(string pixelFormat, bool bLegacySrgb = false)
+        public static Vortice.DXGI.Format ToShaderFormat(string pixelFormat, bool bLegacySrgb = false)
         {
             if (bLegacySrgb)
             {
@@ -608,57 +618,57 @@ namespace Frosty.Core.Viewport
 
             switch (pixelFormat)
             {
-                //case "DXT1": return SharpDX.DXGI.Format.BC1_UNorm;
-                case "NormalDXT1": return SharpDX.DXGI.Format.BC1_UNorm;
-                case "NormalDXN": return SharpDX.DXGI.Format.BC5_UNorm;
-                //case "DXT1A": return SharpDX.DXGI.Format.BC1_UNorm;
-                case "BC1A_SRGB": return SharpDX.DXGI.Format.BC1_UNorm_SRgb;
-                case "BC1A_UNORM": return SharpDX.DXGI.Format.BC1_UNorm;
-                case "BC1_SRGB": return SharpDX.DXGI.Format.BC1_UNorm_SRgb;
-                case "BC1_UNORM": return SharpDX.DXGI.Format.BC1_UNorm;
-                case "BC2_SRGB": return SharpDX.DXGI.Format.BC2_UNorm_SRgb;
-                case "BC2_UNORM": return SharpDX.DXGI.Format.BC2_UNorm;
-                //case "DXT3": return SharpDX.DXGI.Format.BC2_UNorm;
-                case "BC3_SRGB": return SharpDX.DXGI.Format.BC3_UNorm_SRgb;
-                case "BC3_UNORM": return SharpDX.DXGI.Format.BC3_UNorm;
-                case "BC3A_UNORM": return SharpDX.DXGI.Format.BC3_UNorm;
-                case "BC3A_SRGB": return SharpDX.DXGI.Format.BC3_UNorm_SRgb;
-                case "BC4_UNORM": return SharpDX.DXGI.Format.BC4_UNorm;
-                //case "DXT5": return SharpDX.DXGI.Format.BC3_UNorm;
-                //case "DXT5A": return SharpDX.DXGI.Format.BC3_UNorm;
-                case "BC5_UNORM": return SharpDX.DXGI.Format.BC5_UNorm;
-                case "BC6U_FLOAT": return SharpDX.DXGI.Format.BC6H_Uf16;
-                case "BC7": return SharpDX.DXGI.Format.BC7_UNorm;
-                case "BC7_SRGB": return SharpDX.DXGI.Format.BC7_UNorm_SRgb;
-                case "BC7_UNORM": return SharpDX.DXGI.Format.BC7_UNorm;
-                case "R8_UNORM": return SharpDX.DXGI.Format.R8_UNorm;
-                case "R16G16B16A16_FLOAT": return SharpDX.DXGI.Format.R16G16B16A16_Float;
-                case "ARGB32F": return SharpDX.DXGI.Format.R32G32B32A32_Float;
-                case "R32G32B32A32_FLOAT": return SharpDX.DXGI.Format.R32G32B32A32_Float;
-                case "R9G9B9E5F": return SharpDX.DXGI.Format.R9G9B9E5_Sharedexp;
-                case "R9G9B9E5_FLOAT": return SharpDX.DXGI.Format.R9G9B9E5_Sharedexp;
-                case "R8G8B8A8_UNORM": return SharpDX.DXGI.Format.R8G8B8A8_UNorm;
-                case "R8G8B8A8_SRGB": return SharpDX.DXGI.Format.R8G8B8A8_UNorm_SRgb;
-                case "B8G8R8A8_UNORM": return SharpDX.DXGI.Format.B8G8R8A8_UNorm;
-                case "R10G10B10A2_UNORM": return SharpDX.DXGI.Format.R10G10B10A2_UNorm;
-                case "L8": return SharpDX.DXGI.Format.R8_UNorm;
-                case "L16": return SharpDX.DXGI.Format.R16_UNorm;
-                case "ARGB8888": return SharpDX.DXGI.Format.R8G8B8A8_UNorm;
-                case "R16G16_UNORM": return SharpDX.DXGI.Format.R16G16_UNorm;
-                case "D16_UNORM": return SharpDX.DXGI.Format.R16_UNorm;
-                default: return SharpDX.DXGI.Format.Unknown;
+                //case "DXT1": return Vortice.DXGI.Format.BC1_UNorm;
+                case "NormalDXT1": return Vortice.DXGI.Format.BC1_UNorm;
+                case "NormalDXN": return Vortice.DXGI.Format.BC5_UNorm;
+                //case "DXT1A": return Vortice.DXGI.Format.BC1_UNorm;
+                case "BC1A_SRGB": return Vortice.DXGI.Format.BC1_UNorm_SRgb;
+                case "BC1A_UNORM": return Vortice.DXGI.Format.BC1_UNorm;
+                case "BC1_SRGB": return Vortice.DXGI.Format.BC1_UNorm_SRgb;
+                case "BC1_UNORM": return Vortice.DXGI.Format.BC1_UNorm;
+                case "BC2_SRGB": return Vortice.DXGI.Format.BC2_UNorm_SRgb;
+                case "BC2_UNORM": return Vortice.DXGI.Format.BC2_UNorm;
+                //case "DXT3": return Vortice.DXGI.Format.BC2_UNorm;
+                case "BC3_SRGB": return Vortice.DXGI.Format.BC3_UNorm_SRgb;
+                case "BC3_UNORM": return Vortice.DXGI.Format.BC3_UNorm;
+                case "BC3A_UNORM": return Vortice.DXGI.Format.BC3_UNorm;
+                case "BC3A_SRGB": return Vortice.DXGI.Format.BC3_UNorm_SRgb;
+                case "BC4_UNORM": return Vortice.DXGI.Format.BC4_UNorm;
+                //case "DXT5": return Vortice.DXGI.Format.BC3_UNorm;
+                //case "DXT5A": return Vortice.DXGI.Format.BC3_UNorm;
+                case "BC5_UNORM": return Vortice.DXGI.Format.BC5_UNorm;
+                case "BC6U_FLOAT": return Vortice.DXGI.Format.BC6H_Uf16;
+                case "BC7": return Vortice.DXGI.Format.BC7_UNorm;
+                case "BC7_SRGB": return Vortice.DXGI.Format.BC7_UNorm_SRgb;
+                case "BC7_UNORM": return Vortice.DXGI.Format.BC7_UNorm;
+                case "R8_UNORM": return Vortice.DXGI.Format.R8_UNorm;
+                case "R16G16B16A16_FLOAT": return Vortice.DXGI.Format.R16G16B16A16_Float;
+                case "ARGB32F": return Vortice.DXGI.Format.R32G32B32A32_Float;
+                case "R32G32B32A32_FLOAT": return Vortice.DXGI.Format.R32G32B32A32_Float;
+                case "R9G9B9E5F": return Vortice.DXGI.Format.R9G9B9E5_SharedExp;
+                case "R9G9B9E5_FLOAT": return Vortice.DXGI.Format.R9G9B9E5_SharedExp;
+                case "R8G8B8A8_UNORM": return Vortice.DXGI.Format.R8G8B8A8_UNorm;
+                case "R8G8B8A8_SRGB": return Vortice.DXGI.Format.R8G8B8A8_UNorm_SRgb;
+                case "B8G8R8A8_UNORM": return Vortice.DXGI.Format.B8G8R8A8_UNorm;
+                case "R10G10B10A2_UNORM": return Vortice.DXGI.Format.R10G10B10A2_UNorm;
+                case "L8": return Vortice.DXGI.Format.R8_UNorm;
+                case "L16": return Vortice.DXGI.Format.R16_UNorm;
+                case "ARGB8888": return Vortice.DXGI.Format.R8G8B8A8_UNorm;
+                case "R16G16_UNORM": return Vortice.DXGI.Format.R16G16_UNorm;
+                case "D16_UNORM": return Vortice.DXGI.Format.R16_UNorm;
+                default: return Vortice.DXGI.Format.Unknown;
             }
         }
 
-        public static D3D11.Texture2D LoadTexture(D3D11.Device device, string filename, bool generateMips = false)
+        public static D3D11.ID3D11Texture2D LoadTexture(D3D11.ID3D11Device device, string filename, bool generateMips = false)
         {
-            D3D11.Texture2D texture = null;
+            D3D11.ID3D11Texture2D texture = null;
             using (NativeReader reader = new NativeReader(new FileStream(filename, FileMode.Open, FileAccess.Read)))
             {
                 DDSHeader header = new DDSHeader();
                 header.Read(reader);
 
-                SharpDX.DXGI.Format format = SharpDX.DXGI.Format.Unknown;
+                Vortice.DXGI.Format format = Vortice.DXGI.Format.Unknown;
                 int arraySize = ((header.dwCaps2 & DDSCaps2.CubeMap) != 0) ? 6 : 1;
 
                 if (header.HasExtendedHeader)
@@ -673,7 +683,7 @@ namespace Frosty.Core.Viewport
                 int mipCount = header.dwMipMapCount;
                 if (generateMips && mipCount == 1)
                 {
-                    roFlags |= D3D11.ResourceOptionFlags.GenerateMipMaps;
+                    roFlags |= D3D11.ResourceOptionFlags.GenerateMips;
                     bindFlags |= D3D11.BindFlags.RenderTarget;
                     mipCount = 1 + (int)Math.Floor(Math.Log(Math.Max(header.dwWidth, header.dwHeight), 2));
                 }
@@ -682,45 +692,40 @@ namespace Frosty.Core.Viewport
                 {
                     BindFlags = bindFlags,
                     Format = format,
-                    Width = header.dwWidth,
-                    Height = header.dwHeight,
-                    MipLevels = mipCount,
-                    SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                    Width = (uint)(header.dwWidth),
+                    Height = (uint)(header.dwHeight),
+                    MipLevels = (uint)(mipCount),
+                    SampleDescription = new Vortice.DXGI.SampleDescription(1, 0),
                     Usage = D3D11.ResourceUsage.Default,
-                    OptionFlags = roFlags,
-                    CpuAccessFlags = D3D11.CpuAccessFlags.None,
-                    ArraySize = arraySize
+                    MiscFlags = roFlags,
+                    CPUAccessFlags = D3D11.CpuAccessFlags.None,
+                    ArraySize = (uint)(arraySize)
                 };
 
-                texture = new D3D11.Texture2D(device, desc);
+                texture = device.CreateTexture2D(desc);
 
-                int stride = (SharpDX.DXGI.FormatHelper.IsCompressed(format))
-                    ? SharpDX.DXGI.FormatHelper.SizeOfInBits(format) / 2
-                    : SharpDX.DXGI.FormatHelper.SizeOfInBytes(format);
-                int minSize = (SharpDX.DXGI.FormatHelper.IsCompressed(format)) ? 4 : 1;
+                var stride = (int)((Vortice.DXGI.FormatHelper.IsCompressed(format))
+                    ? Vortice.DXGI.FormatHelper.GetBitsPerPixel(format) / 2
+                    : Vortice.DXGI.FormatHelper.GetBitsPerPixel(format) / 8);
+                int minSize = (Vortice.DXGI.FormatHelper.IsCompressed(format)) ? 4 : 1;
 
-                for (int sliceIdx = 0; sliceIdx < arraySize; sliceIdx++)
+                for (uint sliceIdx = 0; sliceIdx < arraySize; sliceIdx++)
                 {
                     int width = header.dwWidth;
                     int height = header.dwHeight;
 
-                    for (int mipIdx = 0; mipIdx < header.dwMipMapCount; mipIdx++)
+                    for (uint mipIdx = 0; mipIdx < header.dwMipMapCount; mipIdx++)
                     {
-                        int rowPitch = 0;
-                        int subResourceId = texture.CalculateSubResourceIndex(mipIdx, sliceIdx, out rowPitch);
+                        uint subResourceId = texture.CalculateSubResourceIndex(mipIdx, sliceIdx, out _);
 
-                        int mipSize = mipSize = SharpDX.DXGI.FormatHelper.IsCompressed(format)
+                        int mipSize = mipSize = Vortice.DXGI.FormatHelper.IsCompressed(format)
                             ? Math.Max(1, ((width + 3) / 4)) * stride * height
                             : width * stride * height;
 
                         byte[] buffer = reader.ReadBytes(mipSize);
-                        GCHandle handle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
-                        IntPtr bufferPtr = handle.AddrOfPinnedObject();
 
-                        DataBox box = new DataBox(bufferPtr, width * stride, 0);
-                        device.ImmediateContext.UpdateSubresource(box, texture, subResourceId);
-
-                        handle.Free();
+                        ReadOnlySpan<byte> data = buffer;
+                        device.ImmediateContext.UpdateSubresource(data, texture, subResourceId, (uint)(width * stride), 0);
 
                         width >>= 1;
                         height >>= 1;
@@ -733,7 +738,7 @@ namespace Frosty.Core.Viewport
             return texture;
         }
 
-        public static D3D11.Texture2D LoadTexture(D3D11.Device device, Texture textureAsset, bool generateMips = false)
+        public static D3D11.ID3D11Texture2D LoadTexture(D3D11.ID3D11Device device, Texture textureAsset, bool generateMips = false)
         {
             textureAsset.Data.Position = 0;
 
@@ -745,7 +750,7 @@ namespace Frosty.Core.Viewport
             ushort width = textureAsset.Width;
             ushort height = textureAsset.Height;
 
-            SharpDX.DXGI.Format format = TextureUtils.ToTextureFormat(textureAsset.PixelFormat, (textureAsset.Flags & TextureFlags.SrgbGamma) != 0);
+            Vortice.DXGI.Format format = TextureUtils.ToTextureFormat(textureAsset.PixelFormat, (textureAsset.Flags & TextureFlags.SrgbGamma) != 0);
             D3D11.ResourceOptionFlags roFlags = D3D11.ResourceOptionFlags.None;
             D3D11.BindFlags bindFlags = D3D11.BindFlags.ShaderResource;
             int mipCount = textureAsset.MipCount;
@@ -753,61 +758,54 @@ namespace Frosty.Core.Viewport
             if (textureAsset.Type == TextureType.TT_Cube)
                 roFlags |= D3D11.ResourceOptionFlags.TextureCube;
 
-            if (!SharpDX.DXGI.FormatHelper.IsCompressed(format))
+            if (!Vortice.DXGI.FormatHelper.IsCompressed(format))
             {
                 if (generateMips && mipCount == 1)
                 {
-                    roFlags |= D3D11.ResourceOptionFlags.GenerateMipMaps;
+                    roFlags |= D3D11.ResourceOptionFlags.GenerateMips;
                     bindFlags |= D3D11.BindFlags.RenderTarget;
                     mipCount = 1 + (int)Math.Floor(Math.Log(Math.Max(textureAsset.Width, textureAsset.Height), 2));
                 }
             }
 
-            D3D11.Texture2DDescription desc = new D3D11.Texture2DDescription()
+            D3D11.Texture2DDescription desc = new()
             {
                 BindFlags = bindFlags,
                 Format = format,
                 Width = textureAsset.Width,
                 Height = textureAsset.Height,
-                MipLevels = mipCount,
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                MipLevels = (uint)(mipCount),
+                SampleDescription = new Vortice.DXGI.SampleDescription(1, 0),
                 Usage = D3D11.ResourceUsage.Default,
-                OptionFlags = roFlags,
-                CpuAccessFlags = D3D11.CpuAccessFlags.None,
-                ArraySize = arraySize
+                MiscFlags = roFlags,
+                CPUAccessFlags = D3D11.CpuAccessFlags.None,
+                ArraySize = (uint)(arraySize)
             };
-            D3D11.Texture2D texture = new D3D11.Texture2D(device, desc);
+            D3D11.ID3D11Texture2D texture = device.CreateTexture2D(desc);
 
             // stride differs between compressed formats and standard
-            int stride = (SharpDX.DXGI.FormatHelper.IsCompressed(format))
-                ? SharpDX.DXGI.FormatHelper.SizeOfInBits(format) / 2
-                : SharpDX.DXGI.FormatHelper.SizeOfInBytes(format);
+            var stride = (int)((Vortice.DXGI.FormatHelper.IsCompressed(format))
+                ? Vortice.DXGI.FormatHelper.GetBitsPerPixel(format) / 2
+                : Vortice.DXGI.FormatHelper.GetBitsPerPixel(format) / 8);
 
             // fill in texture data
-            for (int mip = 0; mip < textureAsset.MipCount; mip++)
+            for (uint mip = 0; mip < textureAsset.MipCount; mip++)
             {
                 int mipSize = (int)textureAsset.MipSizes[mip];
                 if (textureAsset.Type == TextureType.TT_3d)
                 {
-                    mipSize = SharpDX.DXGI.FormatHelper.IsCompressed(format)
+                    mipSize = Vortice.DXGI.FormatHelper.IsCompressed(format)
                         ? Math.Max(1, ((width + 3) / 4)) * stride * height
                         : width * stride * height;
                 }
 
-                for (int slice = 0; slice < arraySize; slice++)
+                for (uint slice = 0; slice < arraySize; slice++)
                 {
                     byte[] buffer = new byte[mipSize];
                     textureAsset.Data.Read(buffer, 0, buffer.Length);
 
-                    GCHandle handle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
-                    IntPtr bufferPtr = handle.AddrOfPinnedObject();
-
-                    SharpDX.DataBox box = new SharpDX.DataBox(bufferPtr, width * stride, 0);
-
-                    int tmp = 0;
-                    device.ImmediateContext.UpdateSubresource(box, texture, texture.CalculateSubResourceIndex(mip, slice, out tmp));
-
-                    handle.Free();
+                    ReadOnlySpan<byte> data = buffer;
+                    device.ImmediateContext.UpdateSubresource(data, texture, texture.CalculateSubResourceIndex(mip, slice, out _), (uint)(width * stride), 0);
                 }
 
                 width >>= 1;

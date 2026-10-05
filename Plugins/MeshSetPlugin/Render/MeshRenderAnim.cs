@@ -1,5 +1,5 @@
-﻿using SharpDX;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.Numerics;
 
 namespace MeshSetPlugin.Render
 {
@@ -53,10 +53,7 @@ namespace MeshSetPlugin.Render
             {
                 frame++;
                 if (frame >= frameCount)
-                {
                     frame = 0;
-                }
-
                 currentTime = 0.0;
             }
 
@@ -75,32 +72,19 @@ namespace MeshSetPlugin.Render
             {
                 int index = bones.FindIndex((Bone a) => a.NameHash == skelBone.NameHash);
                 if (index == -1)
-                {
                     continue;
-                }
 
                 Quaternion? rotation = interpolatedValues[index].Rotation;
                 Vector3? translation = interpolatedValues[index].Translation;
                 Vector3? scale = interpolatedValues[index].Scale;
 
-                skelBone.LocalPose.Decompose(out Vector3 skelScale, out Quaternion skelRotation, out Vector3 skelTranslation);
+                Matrix4x4.Decompose(skelBone.LocalPose, out Vector3 skelScale, out Quaternion skelRotation, out Vector3 skelTranslation);
 
-                if (!rotation.HasValue)
-                {
-                    rotation = skelRotation;
-                }
+                if (!rotation.HasValue) rotation = skelRotation;
+                if (!translation.HasValue) translation = skelTranslation;
+                if (!scale.HasValue) scale = skelScale;
 
-                if (!translation.HasValue)
-                {
-                    translation = skelTranslation;
-                }
-
-                if (!scale.HasValue)
-                {
-                    scale = skelScale;
-                }
-
-                skeleton.UpdateBone(skeleton.GetBoneId(skelBone.NameHash), localPose: Matrix.Scaling(scale.Value) * Matrix.RotationQuaternion(rotation.Value) * Matrix.Translation(translation.Value));
+                skeleton.UpdateBone(skeleton.GetBoneId(skelBone.NameHash), localPose: Matrix4x4.CreateScale(scale.Value) * Matrix4x4.CreateFromQuaternion(rotation.Value) * Matrix4x4.CreateTranslation(translation.Value));
             }
         }
 
@@ -108,9 +92,7 @@ namespace MeshSetPlugin.Render
         {
             GetKeyframes(index, list, out Keyframe<Vector3> first, out Keyframe<Vector3> second, out float interp, ref lastIndex);
             if (first == null && second == null)
-            {
                 return null;
-            }
 
             return Vector3.Lerp(first.Value, second.Value, interp);
         }
@@ -119,9 +101,7 @@ namespace MeshSetPlugin.Render
         {
             GetKeyframes(index, list, out Keyframe<Quaternion> first, out Keyframe<Quaternion> second, out float interp, ref lastIndex);
             if (first == null && second == null)
-            {
                 return null;
-            }
 
             return Quaternion.Slerp(first.Value, second.Value, interp);
         }
@@ -133,9 +113,7 @@ namespace MeshSetPlugin.Render
             interp = 0;
 
             if (list.Count == 0)
-            {
                 return;
-            }
 
             if (list.Count == 1)
             {
@@ -145,9 +123,7 @@ namespace MeshSetPlugin.Render
             }
 
             if (lastIndex > index)
-            {
                 lastIndex = 0;
-            }
 
             for (int i = lastIndex; i < list.Count; i++)
             {
@@ -167,9 +143,7 @@ namespace MeshSetPlugin.Render
                     }
                 }
                 if (first != null && second != null)
-                {
                     break;
-                }
             }
 
             if (first == null && second == null)

@@ -6,8 +6,8 @@ using FrostySdk.Interfaces;
 using FrostySdk.IO;
 using FrostySdk.Managers;
 using FrostySdk.Managers.Entries;
-using PvZBundleManagerPlugin.Ports.Classes;
 using Microsoft.CSharp.RuntimeBinder;
+using PvZBundleManagerPlugin.Ports.Classes;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -17,6 +17,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace PvZBundleManagerPlugin
 {
@@ -298,7 +299,7 @@ namespace PvZBundleManagerPlugin
 
                 foreach (dynamic bundle in refRoot.Bundles)
                 {
-                    string bundleName = $"win32/{bundle.Name.ToString().ToLower()}";
+                    string bundleName = $"{(IsBfn ? "Win32" : "win32")}/{bundle.Name.ToString().ToLower()}";
                     int bundleId = m_assetManager.GetBundleId(bundleName);
                     if (bundleId == -1 || bundle.Name.ToString() == levelName)
                     {
@@ -307,7 +308,7 @@ namespace PvZBundleManagerPlugin
                     prevLoadIds.Add(bundleId);
                 }
 
-                string levelBundleName = $"win32/{levelName.ToLower()}";
+                string levelBundleName = $"{(IsBfn ? "Win32" : "win32")}/{levelName.ToLower()}";
 
                 int levelBundleId = m_assetManager.GetBundleId(levelBundleName);
 
@@ -324,12 +325,12 @@ namespace PvZBundleManagerPlugin
         private bool FindParentsOfNewSublevelBundle(BundleEntry bundleEntry)
         {
             int bundleId = m_assetManager.GetBundleId(bundleEntry);
-            string newBundleName = bundleEntry.Name.Replace("win32/", string.Empty);
+            string newBundleName = bundleEntry.Name.Replace("win32/", string.Empty, StringComparison.OrdinalIgnoreCase);
             bool foundParent = false;
             if (!m_bundleAndParents.ContainsKey(bundleId))
             {
                 WriteToLog("Finding parents of new bundle {0}", bundleEntry.Name);
-                foreach (EbxAssetEntry entry in m_assetManager.EnumerateEbx().Where(entry => entry.IsModified && (entry.Type == "LevelData" || entry.Type == "SubWorldData")))
+                foreach (EbxAssetEntry entry in m_assetManager.EnumerateEbx().Where(entry => entry.IsModified && (entry.Type == "LevelData" || entry.Type == "SubWorldData" || entry.Type == "DetachedSubWorldData")))
                 {
                     foreach (dynamic obj in m_assetManager.GetEbx(entry).ExportedObjects)
                     {
@@ -1040,7 +1041,12 @@ namespace PvZBundleManagerPlugin
 
                 dynamic refRoot = m_assetManager.GetEbx(refEntry).RootObject;
                 string levelName = refRoot.LevelName.ToString();
+
                 List<int> parents = new List<int>();
+                if (IsBfn && levelName.Contains("DSub"))
+                {
+                    parents.Add(m_assetManager.GetBundleId("Win32/levels/level_picnic_root/level_picnic_root"));
+                }
                 List<int> prevLoads = new List<int>();
 
                 WriteToLog($"Searching Level {levelName}");
@@ -1113,32 +1119,35 @@ namespace PvZBundleManagerPlugin
 
                 Parallel.ForEach(pointerRefs, pr =>
                 {
-                    Guid classGuid = pr.External.ClassGuid;
-                    Guid fileGuid = pr.External.FileGuid;
-
-                    if (!processedTypes.TryGetValue(classGuid, out Type objectType))
+                    if (pr.Type != PointerRefType.Null)
                     {
-                        EbxAsset dependency = null;
-                        if (!alreadyOpenedAssets.ContainsKey(fileGuid))
+                        Guid classGuid = pr.External.ClassGuid;
+                        Guid fileGuid = pr.External.FileGuid;
+
+                        if (!processedTypes.TryGetValue(classGuid, out Type objectType))
                         {
-                            dependency = m_assetManager.GetEbx(m_assetManager.GetEbxEntry(fileGuid));
-                            alreadyOpenedAssets[fileGuid] = dependency;
+                            EbxAsset dependency = null;
+                            if (!alreadyOpenedAssets.ContainsKey(fileGuid))
+                            {
+                                dependency = m_assetManager.GetEbx(m_assetManager.GetEbxEntry(fileGuid));
+                                alreadyOpenedAssets[fileGuid] = dependency;
+                            }
+                            else
+                            {
+                                dependency = alreadyOpenedAssets[fileGuid];
+                            }
+
+                            dynamic prObj = dependency.GetObject(classGuid);
+                            objectType = prObj.GetType();
+                            processedTypes[classGuid] = objectType;
                         }
-                        else
+
+                        string[] objType = objectType.ToString().Split('.');
+
+                        if (!m_networkRegistryTypes.Contains(objType.Last()))
                         {
-                            dependency = alreadyOpenedAssets[fileGuid];
+                            foundRegistryTypes.Add(objType.Last());
                         }
-
-                        dynamic prObj = dependency.GetObject(classGuid);
-                        objectType = prObj.GetType();
-                        processedTypes[classGuid] = objectType;
-                    }
-
-                    string[] objType = objectType.ToString().Split('.');
-
-                    if (!m_networkRegistryTypes.Contains(objType.Last()))
-                    {
-                        foundRegistryTypes.Add(objType.Last());
                     }
                 });
 

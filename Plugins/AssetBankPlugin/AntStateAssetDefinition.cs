@@ -53,7 +53,8 @@ namespace AssetBankPlugin
 
         public override void GetSupportedExportTypes(List<AssetExportType> exportTypes)
         {
-            // Adding SEAnim at the top makes it the default selection in the save dialog.
+            // Adding Cast at the top makes it the default selection in the save dialog.
+            exportTypes.Add(new AssetExportType("cast", "Cast Asset Container"));
             exportTypes.Add(new AssetExportType("seanim", "SEAnim Animation File"));
             exportTypes.Add(new AssetExportType("gltf", "GL Transfer format"));
             exportTypes.Add(new AssetExportType("xml", "XML Animation Keyframe Dump"));
@@ -190,8 +191,14 @@ namespace AssetBankPlugin
                             {
                                 Application.Current.Dispatcher.Invoke(() =>
                                 {
-                                    // The exporter uses intern.Name, which is derived from anim.Name
-                                    new AnimationExporterSEANIM().Export(intern, skeleton, exportDirectory);
+                                    if (filterType == "cast")
+                                    {
+                                        new AnimationExporterCAST().Export(intern, skeleton, exportDirectory);
+                                    }
+                                    else
+                                    {
+                                        new AnimationExporterSEANIM().Export(intern, skeleton, exportDirectory);
+                                    }
                                 });
                                 exportedCount++;
                             }
@@ -257,15 +264,16 @@ namespace AssetBankPlugin
                     sb.AppendLine($"{space}{kvp.Key} (Block):");
                     DumpDictionary(sb, nested, indent + 1);
                 }
-                else if (kvp.Value is object[] arr)
+                else if (kvp.Value is Array arr)
                 {
                     sb.AppendLine($"{space}{kvp.Key} (Array, Count: {arr.Length}):");
                     for (int i = 0; i < arr.Length; i++)
                     {
-                        if (arr[i] is Dictionary<string, object> d)
+                        object elem = arr.GetValue(i);
+                        if (elem is Dictionary<string, object> d)
                             DumpDictionary(sb, d, indent + 1);
                         else
-                            sb.AppendLine($"{space}  [{i}]: {arr[i]}");
+                            sb.AppendLine($"{space}  [{i}]: {elem}");
                     }
                 }
                 else

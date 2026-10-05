@@ -5,7 +5,9 @@ using Frosty.Core.Misc;
 using FrostySdk.Attributes;
 using FrostySdk.IO;
 using MeshSetPlugin.Editors;
+using System;
 using System.Collections.Generic;
+using Vortice.DXGI;
 
 namespace MeshSetPlugin
 {
@@ -110,9 +112,10 @@ namespace MeshSetPlugin
         private static List<string> GetDisplayAdapters()
         {
             List<string> displayAdapters = new List<string>();
-            SharpDX.DXGI.Factory factory = new SharpDX.DXGI.Factory1();
+            DXGI.CreateDXGIFactory1(out IDXGIFactory1 factory);
 
-            foreach (var adapter in factory.Adapters)
+            uint index = 0;
+            while (factory.EnumAdapters(index++, out IDXGIAdapter adapter) != ResultCode.NotFound)
             {
                 displayAdapters.Add(adapter.Description.Description);
             }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace AssetBankPlugin.Import
 {
@@ -11,7 +12,7 @@ namespace AssetBankPlugin.Import
             public ulong Ptr;
         }
 
-        public static byte[] PatchHeaderForKeys(byte[] bank, ulong[] newKeys, bool fallbackBigEndian)
+        public static byte[] PatchHeaderForKeys(byte[] bank, ulong[] newKeys, bool fallbackBigEndian, ulong[] keysToRemove = null)
         {
             if (bank == null || bank.Length < 128)
                 throw new ArgumentException("Bank bytes are too small to contain a valid header.");
@@ -78,7 +79,11 @@ namespace AssetBankPlugin.Import
             {
                 long key = (long)ReadU64(bank, (int)pos, tocBig);
                 ulong ptr = ReadU64(bank, (int)pos + 8, tocBig);
-                assetKeys.Add(new KeyAssetPair { Key = key, Ptr = ptr });
+
+                if (keysToRemove == null || !keysToRemove.Contains((ulong)key))
+                {
+                    assetKeys.Add(new KeyAssetPair { Key = key, Ptr = ptr });
+                }
                 pos += 16;
             }
 
@@ -86,7 +91,11 @@ namespace AssetBankPlugin.Import
             for (int i = 0; i < exportCount; i++)
             {
                 long key = (long)ReadU64(bank, (int)pos, tocBig);
-                exportKeys.Add(key);
+
+                if (keysToRemove == null || !keysToRemove.Contains((ulong)key))
+                {
+                    exportKeys.Add(key);
+                }
                 pos += 8;
             }
 
@@ -148,7 +157,7 @@ namespace AssetBankPlugin.Import
             WriteU32(newBank, metaOffset, newMetaBytes, headerBig);
             WriteU32(newBank, metaOffset + 4, packageType, headerBig);
             WriteU32(newBank, metaOffset + 8, newAssetCount, headerBig);
-            WriteU32(newBank, metaOffset + 12, newExportCount, headerBig);    
+            WriteU32(newBank, metaOffset + 12, newExportCount, headerBig);
             WriteU32(newBank, metaOffset + 16, importCount, headerBig);
             WriteU32(newBank, metaOffset + 20, importEntryCount, headerBig);
             WriteU32(newBank, metaOffset + 24, keyMapCount, headerBig);

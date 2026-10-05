@@ -1,7 +1,9 @@
 using AssetBankPlugin.Ant;
+using AssetBankPlugin.Ant.VBR;
 using AssetBankPlugin.Export;
 using AssetBankPlugin.Formats;
 using AssetBankPlugin.Render;
+using AssetBankPlugin.Windows;
 using Frosty.Controls;
 using Frosty.Core;
 using Frosty.Core.Controls;
@@ -22,6 +24,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows;
@@ -31,6 +34,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using static AssetBankPlugin.AntStateAssetEditor;
 
 namespace AssetBankPlugin
 {
@@ -52,21 +56,21 @@ namespace AssetBankPlugin
         public bool IsNew
         {
             get => _isNew;
-            set { _isNew = value; OnPropertyChanged(nameof(IsNew)); OnPropertyChanged(nameof(NameFontWeight)); OnPropertyChanged(nameof(DisplayName)); }
+            set { _isNew = value; OnPropertyChanged(nameof(IsNew)); OnPropertyChanged(nameof(NameFontWeight)); OnPropertyChanged(nameof(DisplayName)); OnPropertyChanged(nameof(RevertVisibility)); }
         }
 
         private bool _isModified;
         public bool IsModified
         {
             get => _isModified;
-            set { _isModified = value; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(NameFontWeight)); OnPropertyChanged(nameof(DisplayName)); }
+            set { _isModified = value; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(NameFontWeight)); OnPropertyChanged(nameof(DisplayName)); OnPropertyChanged(nameof(RevertVisibility)); }
         }
 
         private bool _isUnsaved;
         public bool IsUnsaved
         {
             get => _isUnsaved;
-            set { _isUnsaved = value; OnPropertyChanged(nameof(IsUnsaved)); OnPropertyChanged(nameof(DisplayName)); }
+            set { _isUnsaved = value; OnPropertyChanged(nameof(IsUnsaved)); OnPropertyChanged(nameof(DisplayName)); OnPropertyChanged(nameof(RevertVisibility)); }
         }
 
         public string DisplayName => IsUnsaved ? Name + " *" : Name;
@@ -117,17 +121,63 @@ namespace AssetBankPlugin
         public Visibility EditAnimAssetsVisibility => (AssetInstance is AntAsset ant && ant.AssetType == "ActorControllerAsset") ? Visibility.Visible : Visibility.Collapsed;
         public ICommand EditAnimAssetsCommand => new RelayCommand((o) => ParentEditor?.EditAnimAssets(this));
 
+        public Visibility RevertVisibility => (ParentEditor != null && (IsModified || IsNew || IsUnsaved)) ? Visibility.Visible : Visibility.Collapsed;
+        public ICommand RevertCommand => new RelayCommand((o) => ParentEditor?.RevertAsset(this));
+
+        public Visibility TestCompressorVisibility => (AssetInstance is VbrAnimationAsset) ? Visibility.Visible : Visibility.Collapsed;
+        public ICommand TestCompressorCommand => new RelayCommand((o) => ParentEditor?.TestCompressor(this));
+
+        public Visibility ExportRigMeshVisibility => (AssetInstance is RigAsset) ? Visibility.Visible : Visibility.Collapsed;
+        public ICommand ExportRigMeshCommand => new RelayCommand((o) => ParentEditor?.ExportRigWithMesh(this));
+
         private void ExportAsset()
         {
             if (!(AssetInstance is AnimationAsset anim)) return;
+            if (ParentEditor == null || ParentEditor.BankBytes == null) return;
 
-            var opt = new AnimationOptions();
-            opt.Load();
+            // debugshit
+            bool useRigPickerMenu = false;
 
-            if (string.IsNullOrEmpty(opt.ExportSkeletonAsset))
+            RigAsset selectedBankRig = null;
+            AnimationOptions opt = null;
+
+            if (useRigPickerMenu)
             {
-                FrostyMessageBox.Show("Please set an Export Skeleton in Options first.", "Missing Skeleton");
-                return;
+                var rigsInBank = new List<RigAsset>();
+                foreach (var group in ParentEditor._masterGroups)
+                {
+                    if (group.TypeName == "RigAsset")
+                    {
+                        foreach (var vm in group.Assets)
+                        {
+                            if (vm.AssetInstance is RigAsset rig)
+                                rigsInBank.Add(rig);
+                        }
+                    }
+                }
+
+                if (rigsInBank.Count == 0)
+                {
+                    FrostyMessageBox.Show("No RigAssets found in this bank to extract a skeleton from.", "Export Failed");
+                    return;
+                }
+
+                var picker = new BankRigPickerDialog(rigsInBank) { Owner = Window.GetWindow(ParentEditor) };
+                if (picker.ShowDialog() != true || picker.SelectedRig == null)
+                {
+                    return;
+                }
+                selectedBankRig = picker.SelectedRig;
+            }
+            else
+            {
+                opt = new AnimationOptions();
+                opt.Load();
+                if (string.IsNullOrEmpty(opt.ExportSkeletonAsset))
+                {
+                    FrostyMessageBox.Show("Please set an Export Skeleton in Options first.", "Missing Skeleton");
+                    return;
+                }
             }
 
             string cleanName = Name;
@@ -135,10 +185,11 @@ namespace AssetBankPlugin
             if (idx > 0 && cleanName.EndsWith(")"))
                 cleanName = cleanName.Substring(0, idx);
 
-            FrostySaveFileDialog sfd = new FrostySaveFileDialog("Save Animation", "*.seanim (SEAnim)|*.seanim", "SEAnim", cleanName);
+            FrostySaveFileDialog sfd = new FrostySaveFileDialog("Save Animation", "*.cast (Cast)|*.cast|*.seanim (SEAnim)|*.seanim", "Cast", cleanName);
             if (sfd.ShowDialog())
             {
                 string exportDirectory = Path.GetDirectoryName(sfd.FileName);
+                string extension = Path.GetExtension(sfd.FileName).ToLower();
                 string assetName = cleanName;
 
                 FrostyTaskWindow.Show("Exporting Animation", "", (task) =>
@@ -147,10 +198,24 @@ namespace AssetBankPlugin
                     {
                         try
                         {
-                            EbxAssetEntry skelEntry = App.AssetManager.GetEbxEntry(opt.ExportSkeletonAsset);
-                            var skelEbx = App.AssetManager.GetEbx(skelEntry);
-                            dynamic skel = skelEbx.RootObject;
-                            var skeleton = SkeletonAssetExport.ConvertToInternal(skel);
+                            InternalSkeleton skeleton = null;
+
+                            if (useRigPickerMenu && selectedBankRig != null)
+                            {
+                                skeleton = AntRigExporter.BuildInternalSkeletonFromRig(selectedBankRig);
+                            }
+                            else
+                            {
+                                var skelEntry = App.AssetManager.GetEbxEntry(opt.ExportSkeletonAsset);
+                                var skelEbx = App.AssetManager.GetEbx(skelEntry);
+                                skeleton = SkeletonAssetExport.ConvertToInternal(skelEbx.RootObject);
+                            }
+
+                            if (skeleton == null)
+                            {
+                                App.Logger.LogError($"[AntStateEditor] Failed to construct skeleton for animation export.");
+                                return;
+                            }
 
                             anim.Name = assetName;
                             anim.Channels = anim.GetChannels(anim.ChannelToDofAsset);
@@ -158,7 +223,14 @@ namespace AssetBankPlugin
 
                             if (intern != null)
                             {
-                                new AnimationExporterSEANIM().Export(intern, skeleton, exportDirectory);
+                                if (extension == ".cast")
+                                {
+                                    new AnimationExporterCAST().Export(intern, skeleton, exportDirectory);
+                                }
+                                else
+                                {
+                                    new AnimationExporterSEANIM().Export(intern, skeleton, exportDirectory);
+                                }
                                 App.Logger.Log($"[AntStateEditor] Successfully exported {assetName}");
                             }
                         }
@@ -187,7 +259,7 @@ namespace AssetBankPlugin
                             {
                                 if (kvp.Key == "__name" || kvp.Key == "__guid" || kvp.Key == "__key") continue;
 
-                                var vm = new AntPropertyViewModel(kvp.Key, kvp.Value) { IsEditable = true };
+                                var vm = new AntPropertyViewModel(kvp.Key, kvp.Value, null) { IsEditable = true };
                                 vm.ModifiedCallback = MarkModified;
                                 _properties.Add(vm);
                             }
@@ -203,7 +275,7 @@ namespace AssetBankPlugin
                                 if (p.Name == "Name" || p.Name == "ID" || p.Name == "Bank" || p.Name == "AssetType" || p.Name == "RawData") continue;
                                 try
                                 {
-                                    var vm = new AntPropertyViewModel(p.Name, p.GetValue(AssetInstance));
+                                    var vm = new AntPropertyViewModel(p.Name, p.GetValue(AssetInstance), null);
                                     if (editable) { vm.IsEditable = true; vm.ModifiedCallback = MarkModified; }
                                     _properties.Add(vm);
                                 }
@@ -215,7 +287,7 @@ namespace AssetBankPlugin
                                 if (f.Name.Contains("<") || f.Name.Contains("k__BackingField")) continue;
                                 try
                                 {
-                                    var vm = new AntPropertyViewModel(f.Name, f.GetValue(AssetInstance));
+                                    var vm = new AntPropertyViewModel(f.Name, f.GetValue(AssetInstance), null);
                                     if (editable) { vm.IsEditable = true; vm.ModifiedCallback = MarkModified; }
                                     _properties.Add(vm);
                                 }
@@ -228,11 +300,17 @@ namespace AssetBankPlugin
             }
         }
 
+        public void ResetProperties()
+        {
+            _properties = null;
+            OnPropertyChanged(nameof(Properties));
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged(string propName) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propName));
     }
 
-    public class AntPropertyViewModel
+    public class AntPropertyViewModel : INotifyPropertyChanged
     {
         public string Name { get; set; }
         public string TypeStr { get; set; }
@@ -240,6 +318,8 @@ namespace AssetBankPlugin
         public object ValueObj { get; set; }
 
         public bool IsEditable { get; set; }
+        public bool IsStructureModified { get; set; }
+        public AntPropertyViewModel Parent { get; }
         private string _editedValue;
 
         public Action ModifiedCallback { get; set; }
@@ -258,6 +338,13 @@ namespace AssetBankPlugin
         public Visibility EditableVisibility => IsEditable ? Visibility.Visible : Visibility.Collapsed;
         public Visibility ReadOnlyVisibility => IsEditable ? Visibility.Collapsed : Visibility.Visible;
 
+        public bool IsArrayElement => Parent != null && (Parent.ValueObj is Array || Parent.ValueObj is IList);
+        public Visibility ArrayElementVisibility => IsArrayElement ? Visibility.Visible : Visibility.Collapsed;
+
+        public ICommand InsertBeforeCommand => new RelayCommand((o) => Parent?.InsertArrayElement(this, 0));
+        public ICommand InsertAfterCommand => new RelayCommand((o) => Parent?.InsertArrayElement(this, 1));
+        public ICommand DeleteCommand => new RelayCommand((o) => Parent?.DeleteArrayElement(this));
+
         public ICommand CopyValueCommand => new RelayCommand((o) =>
         {
             if (!string.IsNullOrEmpty(ValueStr))
@@ -266,13 +353,118 @@ namespace AssetBankPlugin
             }
         });
 
-        public AntPropertyViewModel(string name, object val)
+        public AntPropertyViewModel(string name, object val, AntPropertyViewModel parent = null)
         {
             Name = name;
             ValueObj = val;
+            Parent = parent;
             TypeStr = val != null ? GetFriendlyTypeName(val.GetType()) : "Null";
             ValueStr = GetString(val);
         }
+
+        public void InsertArrayElement(AntPropertyViewModel child, int offset)
+        {
+            if (ValueObj == null) return;
+
+            int index = Children.IndexOf(child);
+            if (index < 0) return;
+
+            int insertIndex = index + offset;
+
+            object newElement = null;
+            if (child.ValueObj != null)
+            {
+                newElement = AntStateAssetEditor.DeepCopyRawData(child.ValueObj);
+            }
+            else
+            {
+                Type elemType = typeof(object);
+                if (ValueObj is Array arr)
+                    elemType = arr.GetType().GetElementType();
+                else if (ValueObj.GetType().IsGenericType && ValueObj.GetType().GetGenericTypeDefinition() == typeof(List<>))
+                    elemType = ValueObj.GetType().GetGenericArguments()[0];
+
+                if (elemType == typeof(string)) newElement = "";
+                else if (elemType == typeof(Guid)) newElement = Guid.Empty;
+                else if (elemType.IsValueType) newElement = Activator.CreateInstance(elemType);
+                else newElement = new Dictionary<string, object>();
+            }
+
+            if (ValueObj is Array oldArr)
+            {
+                Type elemType = oldArr.GetType().GetElementType();
+                var newArr = Array.CreateInstance(elemType, oldArr.Length + 1);
+                for (int i = 0, j = 0; i < oldArr.Length + 1; i++)
+                {
+                    if (i == insertIndex)
+                        newArr.SetValue(newElement, i);
+                    else
+                        newArr.SetValue(oldArr.GetValue(j++), i);
+                }
+                ValueObj = newArr;
+            }
+            else if (ValueObj is IList list)
+            {
+                list.Insert(insertIndex, newElement);
+            }
+
+            IsStructureModified = true;
+            RebuildArrayChildren();
+            ModifiedCallback?.Invoke();
+        }
+
+        public void DeleteArrayElement(AntPropertyViewModel child)
+        {
+            if (ValueObj == null) return;
+
+            int index = Children.IndexOf(child);
+            if (index < 0) return;
+
+            if (ValueObj is Array oldArr)
+            {
+                Type elemType = oldArr.GetType().GetElementType();
+                var newArr = Array.CreateInstance(elemType, oldArr.Length - 1);
+                for (int i = 0, j = 0; i < oldArr.Length; i++)
+                {
+                    if (i == index) continue;
+                    newArr.SetValue(oldArr.GetValue(i), j++);
+                }
+                ValueObj = newArr;
+            }
+            else if (ValueObj is IList list)
+            {
+                list.RemoveAt(index);
+            }
+
+            IsStructureModified = true;
+            RebuildArrayChildren();
+            ModifiedCallback?.Invoke();
+        }
+
+        private void RebuildArrayChildren()
+        {
+            if (_children == null) return;
+            _children.Clear();
+
+            if (ValueObj is IEnumerable enumerable)
+            {
+                int i = 0;
+                foreach (var item in enumerable)
+                {
+                    var vm = new AntPropertyViewModel($"[{i++}]", item, this) { IsEditable = IsEditable };
+                    vm.ModifiedCallback = ModifiedCallback;
+                    _children.Add(vm);
+                }
+            }
+            ValueStr = GetString(ValueObj);
+            _editedValue = ValueStr;
+            OnPropertyChanged(nameof(Children));
+            OnPropertyChanged(nameof(ValueStr));
+            OnPropertyChanged(nameof(EditedValue));
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged(string propName) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propName));
 
         private string GetFriendlyTypeName(Type t)
         {
@@ -281,7 +473,7 @@ namespace AssetBankPlugin
             return t.Name;
         }
 
-        private string GetString(object obj)
+        public string GetString(object obj)
         {
             if (obj == null) return "null";
             Type t = obj.GetType();
@@ -342,7 +534,7 @@ namespace AssetBankPlugin
                                 foreach (var kvp in dict)
                                 {
                                     if (kvp.Key == "__typeHash" || kvp.Key == "__guid" || kvp.Key == "__key" || kvp.Key == "__name") continue;
-                                    var vm = new AntPropertyViewModel(kvp.Key, kvp.Value) { IsEditable = true };
+                                    var vm = new AntPropertyViewModel(kvp.Key, kvp.Value, this) { IsEditable = true };
                                     vm.ModifiedCallback = ModifiedCallback;
                                     _children.Add(vm);
                                 }
@@ -352,7 +544,7 @@ namespace AssetBankPlugin
                                 int i = 0;
                                 foreach (var item in enumerable)
                                 {
-                                    var vm = new AntPropertyViewModel($"[{i++}]", item) { IsEditable = true };
+                                    var vm = new AntPropertyViewModel($"[{i++}]", item, this) { IsEditable = true };
                                     vm.ModifiedCallback = ModifiedCallback;
                                     _children.Add(vm);
                                 }
@@ -363,7 +555,7 @@ namespace AssetBankPlugin
                                 {
                                     try
                                     {
-                                        var vm = new AntPropertyViewModel(p.Name, p.GetValue(ValueObj)) { IsEditable = true };
+                                        var vm = new AntPropertyViewModel(p.Name, p.GetValue(ValueObj), this) { IsEditable = true };
                                         vm.ModifiedCallback = ModifiedCallback;
                                         _children.Add(vm);
                                     }
@@ -374,7 +566,7 @@ namespace AssetBankPlugin
                                     if (f.Name.Contains("<") || f.Name.Contains("k__BackingField")) continue;
                                     try
                                     {
-                                        var vm = new AntPropertyViewModel(f.Name, f.GetValue(ValueObj)) { IsEditable = true };
+                                        var vm = new AntPropertyViewModel(f.Name, f.GetValue(ValueObj), this) { IsEditable = true };
                                         vm.ModifiedCallback = ModifiedCallback;
                                         _children.Add(vm);
                                     }
@@ -443,6 +635,7 @@ namespace AssetBankPlugin
     }
 
     [TemplatePart(Name = "PART_SearchBox", Type = typeof(TextBox))]
+    [TemplatePart(Name = "PART_FilterMenu", Type = typeof(AssetFilterMenu))]
     [TemplatePart(Name = "PART_AssetTreeView", Type = typeof(TreeView))]
     [TemplatePart(Name = "PART_LoadingOverlay", Type = typeof(Border))]
     [TemplatePart(Name = "PART_LoadingText", Type = typeof(TextBlock))]
@@ -470,6 +663,7 @@ namespace AssetBankPlugin
     public partial class AntStateAssetEditor : FrostyAssetEditor, INotifyPropertyChanged
     {
         private TextBox m_searchBox;
+        private AssetFilterMenu m_filterMenu;
         private TreeView m_assetTreeView;
         private Border m_loadingOverlay;
         private TextBlock m_loadingText;
@@ -519,7 +713,7 @@ namespace AssetBankPlugin
         private string _currentPreviewName;
         private bool _isProgrammaticSliderUpdate = false;
 
-        private List<AntTypeGroup> _masterGroups = new List<AntTypeGroup>();
+        internal List<AntTypeGroup> _masterGroups = new List<AntTypeGroup>();
         private ObservableCollection<AntTypeGroup> _filteredGroups = new ObservableCollection<AntTypeGroup>();
 
         private AntAssetViewModel _selectedAsset;
@@ -552,6 +746,9 @@ namespace AssetBankPlugin
             base.OnApplyTemplate();
 
             m_searchBox = GetTemplateChild("PART_SearchBox") as TextBox;
+            m_filterMenu = GetTemplateChild("PART_FilterMenu") as AssetFilterMenu;
+            var filterBtn = GetTemplateChild("PART_FilterButton") as System.Windows.Controls.Primitives.ToggleButton;
+            var filterPopup = GetTemplateChild("PART_FilterPopup") as System.Windows.Controls.Primitives.Popup;
             m_assetTreeView = GetTemplateChild("PART_AssetTreeView") as TreeView;
             m_loadingOverlay = GetTemplateChild("PART_LoadingOverlay") as Border;
             m_loadingText = GetTemplateChild("PART_LoadingText") as TextBlock;
@@ -569,9 +766,33 @@ namespace AssetBankPlugin
             opt0.Load();
             _currentSkeletonPath = opt0.ExportSkeletonAsset ?? "";
 
+            if (filterBtn != null && filterPopup != null)
+            {
+                DateTime lastPopupClose = DateTime.MinValue;
+
+                filterPopup.Closed += (s, e) =>
+                {
+                    lastPopupClose = DateTime.Now;
+                    filterBtn.IsChecked = false;
+                };
+
+                filterBtn.Click += (s, e) =>
+                {
+                    if ((DateTime.Now - lastPopupClose).TotalMilliseconds < 150)
+                    {
+                        filterBtn.IsChecked = false;
+                        filterPopup.IsOpen = false;
+                    }
+                    else
+                    {
+                        filterPopup.IsOpen = filterBtn.IsChecked == true;
+                    }
+                };
+            }
+
             if (skelOverride != null)
             {
-                skelOverride.Checked += (s, e) =>
+                skelOverride.Checked += async (s, e) =>
                 {
                     if (_suppressSkeletonToggle) return;
                     var picker = new SkeletonPickerDialog { Owner = Window.GetWindow(this) };
@@ -583,8 +804,12 @@ namespace AssetBankPlugin
                         opt.Load();
                         opt.ExportSkeletonAsset = _currentSkeletonPath;
                         opt.Save();
+
                         if (_currentPreviewAsset != null)
-                            _ = LoadPreviewAsync(_currentPreviewAsset, _currentPreviewName);
+                            await LoadPreviewAsync(_currentPreviewAsset, _currentPreviewName);
+
+                        if (m_meshPathBox != null && !string.IsNullOrEmpty(m_meshPathBox.Text))
+                            await LoadMeshAsync(m_meshPathBox.Text.Trim());
                     }
                     else
                     {
@@ -594,13 +819,17 @@ namespace AssetBankPlugin
                     }
                 };
 
-                skelOverride.Unchecked += (s, e) =>
+                skelOverride.Unchecked += async (s, e) =>
                 {
                     if (_suppressSkeletonToggle) return;
                     _skeletonOverrideActive = false;
                     _currentSkeletonPath = "";
+
                     if (_currentPreviewAsset != null)
-                        _ = LoadPreviewAsync(_currentPreviewAsset, _currentPreviewName);
+                        await LoadPreviewAsync(_currentPreviewAsset, _currentPreviewName);
+
+                    if (m_meshPathBox != null && !string.IsNullOrEmpty(m_meshPathBox.Text))
+                        await LoadMeshAsync(m_meshPathBox.Text.Trim());
                 };
             }
 
@@ -640,7 +869,8 @@ namespace AssetBankPlugin
             if (addRefBtn != null) addRefBtn.Click += (s, e) => OpenReferenceSelector();
 
             var saveBtn = GetTemplateChild("PART_SaveButton") as Button;
-            if (saveBtn != null) saveBtn.Click += (s, e) => SaveAllUnsaved();
+            if (saveBtn != null)
+                saveBtn.Click += (s, e) => SaveAllUnsaved();
 
             if (m_assetTreeView != null)
             {
@@ -668,6 +898,11 @@ namespace AssetBankPlugin
             if (m_searchBox != null)
                 m_searchBox.TextChanged += (s, e) => ApplySearchFilter(m_searchBox.Text);
 
+            if (m_filterMenu != null)
+            {
+                m_filterMenu.FilterChanged += (s, e) => ApplySearchFilter(m_searchBox?.Text);
+            }
+
             if (m_viewport != null)
                 m_viewport.Screen = m_screen;
 
@@ -675,12 +910,12 @@ namespace AssetBankPlugin
             if (_meshListPopup != null)
                 _meshListPopup.DataContext = this;
 
-            /*var skeletonBtn = GetTemplateChild("PART_PreviewSkeletonBtn") as ToggleButton;
+            var skeletonBtn = GetTemplateChild("PART_PreviewSkeletonBtn") as ToggleButton;
             if (skeletonBtn != null)
             {
                 skeletonBtn.Checked += (s, e) => m_screen.ShowSkeleton = true;
                 skeletonBtn.Unchecked += (s, e) => m_screen.ShowSkeleton = false;
-            }*/
+            }
 
             m_restartBtn = GetTemplateChild("PART_RestartBtn") as Button;
             m_playPauseBtn = GetTemplateChild("PART_PlayPauseBtn") as System.Windows.Controls.Primitives.ToggleButton;
@@ -719,7 +954,7 @@ namespace AssetBankPlugin
 
             if (m_lodCombo != null)
             {
-                m_lodCombo.ItemsSource = new[] { "LOD 0", "LOD 1", "LOD 2", "LOD 3", "LOD 4", "LOD 5" };
+                m_lodCombo.ItemsSource = new[] { "0", "1", "2", "3", "4", "5" };
                 m_lodCombo.SelectedIndex = 0;
                 m_lodCombo.SelectionChanged += (s, e) => m_screen.CurrentLOD = m_lodCombo.SelectedIndex;
             }
@@ -761,7 +996,49 @@ namespace AssetBankPlugin
 
         public override void Closed()
         {
-            m_viewport?.Shutdown();
+            if (m_viewport != null)
+            {
+                try
+                {
+                    m_viewport.Shutdown();
+                }
+                catch (Exception ex)
+                {
+                    App.Logger.LogWarning($"[AntStateEditor] Viewport shutdown: {ex.Message}");
+                }
+            }
+
+            if (m_assetTreeView != null)
+            {
+                m_assetTreeView.ItemsSource = null;
+                m_assetTreeView.Items.Clear();
+            }
+
+            if (_masterGroups != null)
+            {
+                foreach (var group in _masterGroups)
+                    group.Assets?.Clear();
+                _masterGroups.Clear();
+            }
+
+            _filteredGroups?.Clear();
+
+            if (LoadedMeshes != null)
+                LoadedMeshes.Clear();
+
+            _loadedMeshData?.Clear();
+
+            _selectedAsset = null;
+            _currentPreviewAsset = null;
+            _shiftAnchor = null;
+
+            _bankBytes = null;
+            _bank = null;
+
+            AntRefTable.Clear();
+
+            GC.Collect();
+
             base.Closed();
         }
 
@@ -897,6 +1174,574 @@ namespace AssetBankPlugin
                 App.Logger.Log($"[AntStateEditor] Successfully loaded {selectedBanks.Count} reference banks into cache.");
             }
         }
+
+        internal void TestCompressor(AntAssetViewModel vm)
+        {
+            if (!(vm.AssetInstance is VbrAnimationAsset original))
+                return;
+
+            try
+            {
+                List<Vector4> rawFrames = original.Decompress();
+
+                int qCount = original.QuaternionCount;
+                int vCount = original.Vector3Count;
+                int fCount = original.NumFloat;
+                int frameCount = original.NumKeys;
+                int dofCount = qCount + vCount + fCount;
+
+                int expected = frameCount * dofCount;
+                if (rawFrames.Count < expected)
+                {
+                    App.Logger.LogError($"Decompressed data size mismatch. Expected {expected}, got {rawFrames.Count}");
+                    return;
+                }
+
+                int totalQ = original.QuaternionCount + original.ConstQuaternionCount;
+                int totalV = original.Vector3Count + original.ConstVector3Count;
+                int totalF = original.NumFloat + original.ConstFloatCount;
+                int totalCh = totalQ + totalV + totalF;
+
+                bool[] isConstant = new bool[totalCh];
+                if (original.ConstChanMap != null && original.ConstChanMap.Length > 0)
+                {
+                    bool curVal = false;
+                    int chIdx = 0;
+                    foreach (byte runLen in original.ConstChanMap)
+                    {
+                        for (int r = 0; r < runLen && chIdx < totalCh; r++)
+                        {
+                            isConstant[chIdx++] = curVal;
+                        }
+                        curVal = !curVal;
+                    }
+                }
+                else
+                {
+                    int idx = 0;
+                    for (int i = 0; i < totalQ; i++) isConstant[idx++] = (i >= original.QuaternionCount);
+                    for (int i = 0; i < totalV; i++) isConstant[idx++] = (i >= original.Vector3Count);
+                    for (int i = 0; i < totalF; i++) isConstant[idx++] = (i >= original.NumFloat);
+                }
+
+                List<int> constQuatChannels = new List<int>();
+                List<int> animQuatChannels = new List<int>();
+                for (int i = 0; i < totalQ; i++)
+                {
+                    if (isConstant[i]) constQuatChannels.Add(i);
+                    else animQuatChannels.Add(i);
+                }
+
+                List<int> constVecChannels = new List<int>();
+                List<int> animVecChannels = new List<int>();
+                for (int i = totalQ; i < totalQ + totalV; i++)
+                {
+                    if (isConstant[i]) constVecChannels.Add(i - totalQ);
+                    else animVecChannels.Add(i - totalQ);
+                }
+
+                List<int> constFloatChannels = new List<int>();
+                List<int> animFloatChannels = new List<int>();
+                for (int i = totalQ + totalV; i < totalCh; i++)
+                {
+                    if (isConstant[i]) constFloatChannels.Add(i - (totalQ + totalV));
+                    else animFloatChannels.Add(i - (totalQ + totalV));
+                }
+
+                float[][][] quats = new float[totalQ][][];
+                for (int q = 0; q < totalQ; q++) quats[q] = new float[frameCount][];
+
+                float[][][] vecs = new float[totalV][][];
+                for (int v = 0; v < totalV; v++) vecs[v] = new float[frameCount][];
+
+                float[][] floats = new float[totalF][];
+                for (int fl = 0; fl < totalF; fl++) floats[fl] = new float[frameCount];
+
+                ushort[] paletteIndexes = original.PaletteIndexes ?? Array.Empty<ushort>();
+                float[] constantPalette = original.ConstantPalette ?? Array.Empty<float>();
+
+                int paletteIdx = 0;
+
+                for (int i = 0; i < constQuatChannels.Count; i++)
+                {
+                    int qIdx = constQuatChannels[i];
+                    Vector4 val = new Vector4(0, 0, 0, 1);
+                    if (paletteIdx + 3 < paletteIndexes.Length)
+                    {
+                        int i0 = paletteIndexes[paletteIdx];
+                        int i1 = paletteIndexes[paletteIdx + 1];
+                        int i2 = paletteIndexes[paletteIdx + 2];
+                        int i3 = paletteIndexes[paletteIdx + 3];
+                        if (i0 < constantPalette.Length && i1 < constantPalette.Length &&
+                            i2 < constantPalette.Length && i3 < constantPalette.Length)
+                        {
+                            val = new Vector4(
+                                constantPalette[i0],
+                                constantPalette[i1],
+                                constantPalette[i2],
+                                constantPalette[i3]
+                            );
+                            val = val * (original.QuatMax - original.QuatMin) + new Vector4(original.QuatMin);
+                        }
+                    }
+                    paletteIdx += 4;
+
+                    for (int f = 0; f < frameCount; f++)
+                    {
+                        quats[qIdx][f] = new float[4] { val.X, val.Y, val.Z, val.W };
+                    }
+                }
+
+                for (int i = 0; i < constVecChannels.Count; i++)
+                {
+                    int vIdx = constVecChannels[i];
+                    Vector3 val = new Vector3(0, 0, 0);
+                    if (paletteIdx + 2 < paletteIndexes.Length)
+                    {
+                        int i0 = paletteIndexes[paletteIdx];
+                        int i1 = paletteIndexes[paletteIdx + 1];
+                        int i2 = paletteIndexes[paletteIdx + 2];
+                        if (i0 < constantPalette.Length && i1 < constantPalette.Length &&
+                            i2 < constantPalette.Length)
+                        {
+                            val = new Vector3(
+                                constantPalette[i0],
+                                constantPalette[i1],
+                                constantPalette[i2]
+                            );
+                            val = val * (original.Vec3Max - original.Vec3Min) + new Vector3(original.Vec3Min);
+                        }
+                    }
+                    paletteIdx += 3;
+
+                    for (int f = 0; f < frameCount; f++)
+                    {
+                        vecs[vIdx][f] = new float[3] { val.X, val.Y, val.Z };
+                    }
+                }
+
+                for (int i = 0; i < constFloatChannels.Count; i++)
+                {
+                    int fIdx = constFloatChannels[i];
+                    float val = 0f;
+                    if (paletteIdx < paletteIndexes.Length)
+                    {
+                        int i0 = paletteIndexes[paletteIdx];
+                        if (i0 < constantPalette.Length)
+                        {
+                            val = constantPalette[i0];
+                            val = val * (original.FloatMax - original.FloatMin) + original.FloatMin;
+                        }
+                    }
+                    paletteIdx += 1;
+
+                    for (int f = 0; f < frameCount; f++)
+                    {
+                        floats[fIdx][f] = val;
+                    }
+                }
+
+                for (int f = 0; f < frameCount; f++)
+                {
+                    int frameOffset = f * dofCount;
+
+                    for (int i = 0; i < animQuatChannels.Count; i++)
+                    {
+                        int qIdx = animQuatChannels[i];
+                        int rawIdx = frameOffset + i;
+                        Vector4 v = (rawIdx < rawFrames.Count) ? rawFrames[rawIdx] : new Vector4(0, 0, 0, 1);
+                        quats[qIdx][f] = new float[4] { v.X, v.Y, v.Z, v.W };
+                    }
+
+                    for (int i = 0; i < animVecChannels.Count; i++)
+                    {
+                        int vIdx = animVecChannels[i];
+                        int rawIdx = frameOffset + original.QuaternionCount + i;
+                        Vector4 vv = (rawIdx < rawFrames.Count) ? rawFrames[rawIdx] : new Vector4(0, 0, 0, 0);
+                        vecs[vIdx][f] = new float[3] { vv.X, vv.Y, vv.Z };
+                    }
+
+                    for (int i = 0; i < animFloatChannels.Count; i++)
+                    {
+                        int fIdx = animFloatChannels[i];
+                        int rawIdx = frameOffset + original.QuaternionCount + original.Vector3Count + i;
+                        Vector4 vf = (rawIdx < rawFrames.Count) ? rawFrames[rawIdx] : new Vector4(0, 0, 0, 0);
+                        floats[fIdx][f] = vf.X;
+                    }
+                }
+
+                bool cycle = (original.Flags & 1) != 0;
+
+                VbrAnimationAsset recompressed = VbrCompressor.CompressFromData(
+                    quats, vecs, floats, frameCount, cycle, original);
+
+                if (recompressed.NumKeys == original.NumKeys)
+                {
+                    original.Data = recompressed.Data;
+                    original.ConstantPalette = recompressed.ConstantPalette;
+                    original.FrameBlockSizes = recompressed.FrameBlockSizes;
+                    original.PaletteIndexes = recompressed.PaletteIndexes;
+                    original.ConstChanMap = recompressed.ConstChanMap;
+
+                    original.QuaternionCount = recompressed.QuaternionCount;
+                    original.Vector3Count = recompressed.Vector3Count;
+                    original.NumFloat = recompressed.NumFloat;
+                    original.ConstQuaternionCount = recompressed.ConstQuaternionCount;
+                    original.ConstVector3Count = recompressed.ConstVector3Count;
+                    original.ConstFloatCount = recompressed.ConstFloatCount;
+                    original.QuatMin = recompressed.QuatMin;
+                    original.QuatMax = recompressed.QuatMax;
+                    original.TrajMin = recompressed.TrajMin;
+                    original.TrajMax = recompressed.TrajMax;
+                    original.Vec3Min = recompressed.Vec3Min;
+                    original.Vec3Max = recompressed.Vec3Max;
+                    original.FloatMin = recompressed.FloatMin;
+                    original.FloatMax = recompressed.FloatMax;
+                    original.Dct = recompressed.Dct;
+                    original.KeyTimeSize = recompressed.KeyTimeSize;
+                    original.ConstChanMapSize = recompressed.ConstChanMapSize;
+                    original.ConstPaletteSize = recompressed.ConstPaletteSize;
+                    original.Flags = recompressed.Flags;
+                    original.EndFrame = recompressed.EndFrame;
+
+                    original.VectorOffsetScale = recompressed.VectorOffsetScale;
+                    original.FloatOffsetScale = recompressed.FloatOffsetScale;
+                    original.VectorOffsetSize = recompressed.VectorOffsetSize;
+                    original.FloatOffsetSize = recompressed.FloatOffsetSize;
+                    original.VectorOffsets = recompressed.VectorOffsets;
+
+                    original.RawData = new Dictionary<string, object>(recompressed.RawData);
+                    original.RawData["__name"] = original.Name;
+                    original.RawData["__guid"] = original.ID;
+
+                    byte[] guidBytes = original.ID.ToByteArray();
+                    original.RawData["__key"] = BitConverter.ToUInt64(guidBytes, 0);
+
+                    var cacheField = typeof(VbrAnimationAsset).GetField("DecompressedData",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    if (cacheField != null)
+                    {
+                        var cacheList = cacheField.GetValue(original) as List<Vector4>;
+                        cacheList?.Clear();
+                    }
+
+                    vm.MarkModified();
+                    vm.ResetProperties();
+                    _ = LoadPreviewAsync(original, _currentPreviewName);
+
+                    App.Logger.Log($"[TestCompressor] Round-trip applied. Original size: {original.Data?.Length ?? 0} bytes, Recompressed size: {recompressed.Data?.Length ?? 0} bytes");
+                }
+                else
+                {
+                    App.Logger.LogError($"[TestCompressor] Round-trip failed: frame count mismatch. Original: {original.NumKeys}, New: {recompressed.NumKeys}");
+                }
+            }
+            catch (Exception ex)
+            {
+                App.Logger.LogError($"[TestCompressor] Test failed: {ex.Message}");
+            }
+        }
+        public void ExportRigWithMesh(AntAssetViewModel sourceVm)
+        {
+            if (!(sourceVm?.AssetInstance is RigAsset rig)) return;
+
+            EbxAssetEntry initialMesh = null;
+            dynamic mainWin = App.EditorWindow;
+            EbxAssetEntry selectedMeshEntry = mainWin?.DataExplorer?.SelectedAsset as EbxAssetEntry;
+
+            if (selectedMeshEntry != null && (selectedMeshEntry.Type == "SkinnedMeshAsset" || selectedMeshEntry.Type == "RigidMeshAsset"))
+            {
+                initialMesh = selectedMeshEntry;
+            }
+            else if (m_meshPathBox != null && !string.IsNullOrWhiteSpace(m_meshPathBox.Text))
+            {
+                initialMesh = App.AssetManager.GetEbxEntry(m_meshPathBox.Text);
+            }
+
+            var settingsWin = new AssetBankPlugin.Windows.RigExportSettingsWindow(initialMesh) { Owner = Window.GetWindow(this) };
+            if (settingsWin.ShowDialog() != true || settingsWin.SelectedMesh == null)
+            {
+                return;
+            }
+
+            EbxAssetEntry targetMeshEntry = settingsWin.SelectedMesh;
+            string fbxVersion = settingsWin.SelectedFbxVersion;
+            string fbxScale = settingsWin.SelectedScale;
+            bool exportSingleLod = settingsWin.ExportSingleLod;
+
+            FrostySaveFileDialog sfd = new FrostySaveFileDialog("Save Rig + Mesh", "*.fbx (Autodesk FBX)|*.fbx", "Mesh", rig.Name);
+            if (!sfd.ShowDialog()) return;
+
+            string exportPath = sfd.FileName;
+
+            FrostyTaskWindow.Show("Exporting Rig + Mesh", "", (task) =>
+            {
+                string virtualSkelName = null;
+                try
+                {
+                    InternalSkeleton internalSkel = AntRigExporter.BuildInternalSkeletonFromRig(rig);
+
+                    if (internalSkel == null)
+                    {
+                        App.Logger.LogError($"[ExportRig] Failed to construct skeleton for Rig '{rig.Name}'.");
+                        return;
+                    }
+
+                    if (internalSkel == null)
+                    {
+                        App.Logger.LogError($"[ExportRig] Failed to construct skeleton for Rig '{rig.Name}'.");
+                        return;
+                    }
+
+                    dynamic dynamicSkelAsset = AntRigExporter.CreateEbxSkeletonFromInternal(internalSkel);
+
+                    virtualSkelName = VirtualSkeletonManager.RegisterVirtualSkeleton(dynamicSkelAsset);
+
+                    EbxAsset meshEbx = App.AssetManager.GetEbx(targetMeshEntry);
+                    dynamic meshRoot = meshEbx.RootObject;
+                    ulong resRid = meshRoot.MeshSetResource;
+                    ResAssetEntry rEntry = App.AssetManager.GetResEntry(resRid);
+                    MeshSet meshSet = App.AssetManager.GetResAs<MeshSet>(rEntry);
+
+                    var exporter = new MeshSetPlugin.FBXExporter(task);
+                    exporter.ExportFBX(meshRoot, exportPath, fbxVersion, fbxScale, false, exportSingleLod, false, virtualSkelName, "binary", meshSet);
+
+                    App.Logger.Log($"[ExportRig] Successfully exported Rig '{rig.Name}' with Mesh '{targetMeshEntry.Name}' to {exportPath}");
+
+                    Application.Current.Dispatcher.Invoke(() =>
+                        FrostyMessageBox.Show($"Exported successfully to:\n{exportPath}", "Export Complete"));
+                }
+                catch (Exception ex)
+                {
+                    App.Logger.LogError($"[ExportRig] Failed to export Rig + Mesh: {ex.Message}\n{ex.StackTrace}");
+                    Application.Current.Dispatcher.Invoke(() =>
+                        FrostyMessageBox.Show($"Failed to export: {ex.Message}", "Export Failed"));
+                }
+                finally
+                {
+                    if (!string.IsNullOrEmpty(virtualSkelName))
+                    {
+                        VirtualSkeletonManager.UnregisterVirtualSkeleton(virtualSkelName);
+                    }
+                }
+            });
+        }
+
+        public class DuplicateRenameWindow : FrostyWindow // remake in xaml later
+        {
+            public string NewName { get; private set; }
+            private readonly IEnumerable<string> _existingNames;
+            private TextBox m_nameBox;
+
+            public DuplicateRenameWindow(string defaultName, IEnumerable<string> existingNames)
+            {
+                _existingNames = existingNames;
+                NewName = defaultName;
+
+                Title = "  Duplicate Asset";
+                Width = 420;
+                Height = 150;
+                WindowStartupLocation = WindowStartupLocation.CenterOwner;
+                ResizeMode = ResizeMode.NoResize;
+
+                Grid mainGrid = new Grid { Margin = new Thickness(15) };
+                mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Label
+                mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // TextBox
+                mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Spacer
+                mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Buttons
+
+                TextBlock label = new TextBlock
+                {
+                    Text = "Enter a unique name for the duplicated asset:",
+                    Foreground = Brushes.White,
+                    Margin = new Thickness(0, 0, 0, 8),
+                    FontSize = 11
+                };
+                Grid.SetRow(label, 0);
+                mainGrid.Children.Add(label);
+
+                m_nameBox = new TextBox
+                {
+                    Text = defaultName,
+                    Height = 24,
+                    VerticalContentAlignment = VerticalAlignment.Center,
+                    Padding = new Thickness(4, 0, 4, 0),
+                    Foreground = Brushes.White,
+                    Background = new SolidColorBrush(Color.FromRgb(40, 40, 40)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(68, 68, 68)),
+                    CaretBrush = Brushes.White
+                };
+
+                m_nameBox.Loaded += (s, e) => { m_nameBox.Focus(); m_nameBox.SelectAll(); };
+                Grid.SetRow(m_nameBox, 1);
+                mainGrid.Children.Add(m_nameBox);
+
+                StackPanel btnStack = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Margin = new Thickness(0, 10, 0, 0)
+                };
+
+                Button okBtn = new Button
+                {
+                    Content = "Duplicate",
+                    Width = 90,
+                    Height = 26,
+                    Margin = new Thickness(0, 0, 10, 0),
+                    IsDefault = true
+                };
+                okBtn.Click += (s, e) => Commit();
+                btnStack.Children.Add(okBtn);
+
+                Button cancelBtn = new Button
+                {
+                    Content = "Cancel",
+                    Width = 80,
+                    Height = 26,
+                    IsCancel = true
+                };
+                cancelBtn.Click += (s, e) => { DialogResult = false; Close(); };
+                btnStack.Children.Add(cancelBtn);
+
+                Grid.SetRow(btnStack, 3);
+                mainGrid.Children.Add(btnStack);
+
+                Content = mainGrid;
+            }
+
+            private void Commit()
+            {
+                string typed = m_nameBox.Text.Trim();
+
+                if (string.IsNullOrWhiteSpace(typed))
+                {
+                    FrostyMessageBox.Show("Asset name cannot be empty.", "Duplicate Asset");
+                    return;
+                }
+
+                if (_existingNames.Any(x => x.Equals(typed, StringComparison.OrdinalIgnoreCase)))
+                {
+                    FrostyMessageBox.Show("An asset with this name already exists in the bank database. Please specify a unique name.", "Duplicate Asset");
+                    return;
+                }
+
+                NewName = typed;
+                DialogResult = true;
+                Close();
+            }
+        }
+
+        public class BankRigPickerDialog : FrostyWindow
+        {
+            public RigAsset SelectedRig { get; private set; }
+            private ListBox m_listBox;
+
+            public BankRigPickerDialog(List<RigAsset> rigs)
+            {
+                Title = "  Select Export Skeleton Rig";
+                Width = 450;
+                Height = 350;
+                WindowStartupLocation = WindowStartupLocation.CenterOwner;
+                ResizeMode = ResizeMode.NoResize;
+
+                Grid mainGrid = new Grid { Margin = new Thickness(15) };
+                mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Label
+                mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // List
+                mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Buttons
+
+                TextBlock label = new TextBlock
+                {
+                    Text = "Select a Rig Asset from the active bank to use as the export skeleton:",
+                    Foreground = Brushes.White,
+                    Margin = new Thickness(0, 0, 0, 8),
+                    FontSize = 11,
+                    TextWrapping = TextWrapping.Wrap
+                };
+                Grid.SetRow(label, 0);
+                mainGrid.Children.Add(label);
+
+                m_listBox = new ListBox
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(40, 40, 40)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(68, 68, 68)),
+                    Foreground = Brushes.White,
+                    DisplayMemberPath = "Name"
+                };
+                foreach (var r in rigs) m_listBox.Items.Add(r);
+                if (m_listBox.Items.Count > 0) m_listBox.SelectedIndex = 0;
+
+                m_listBox.MouseDoubleClick += (s, e) => Confirm();
+
+                Grid.SetRow(m_listBox, 1);
+                mainGrid.Children.Add(m_listBox);
+
+                StackPanel btnStack = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Margin = new Thickness(0, 10, 0, 0)
+                };
+
+                Button okBtn = new Button
+                {
+                    Content = "Select",
+                    Width = 90,
+                    Height = 26,
+                    Margin = new Thickness(0, 0, 10, 0),
+                    IsDefault = true
+                };
+                okBtn.Click += (s, e) => Confirm();
+                btnStack.Children.Add(okBtn);
+
+                Button cancelBtn = new Button
+                {
+                    Content = "Cancel",
+                    Width = 80,
+                    Height = 26,
+                    IsCancel = true
+                };
+                cancelBtn.Click += (s, e) => { DialogResult = false; Close(); };
+                btnStack.Children.Add(cancelBtn);
+
+                Grid.SetRow(btnStack, 2);
+                mainGrid.Children.Add(btnStack);
+
+                Content = mainGrid;
+            }
+
+            private void Confirm()
+            {
+                SelectedRig = m_listBox.SelectedItem as RigAsset;
+                if (SelectedRig == null) return;
+                DialogResult = true;
+                Close();
+            }
+        }
+
+        private void UpdateMeshSkeletons()
+        {
+            if (m_screen.CurrentSkeleton == null || _loadedMeshData.Count == 0) return;
+
+            foreach (var e in _loadedMeshData)
+            {
+                if (e.SourceEntry != null)
+                {
+                    try
+                    {
+                        var ebx = App.AssetManager.GetEbx(e.SourceEntry);
+                        e.PerMeshSkeleton = BuildPerMeshSkeleton(ebx.RootObject);
+                    }
+                    catch (Exception ex)
+                    {
+                        App.Logger.LogWarning($"[AntStateEditor] Failed to bind skeleton for mesh '{e.DisplayName}': {ex.Message}");
+                    }
+                }
+            }
+
+            OnMeshVisibilityChanged();
+        }
+
     }
     internal class EditAnimAssetsWindow : FrostyWindow
     {

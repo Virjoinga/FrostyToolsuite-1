@@ -1,8 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<Configurations>Developer - Debug;Release - Alpha;Release - Beta;Release - Final</Configurations>
 		<Platforms>x64</Platforms>
-		<TargetFrameworks>net481</TargetFrameworks>
+		<TargetFrameworks>net10.0-windows</TargetFrameworks>
 		<RootNamespace>PvZBundleManagerPlugin</RootNamespace>
 		<AssemblyName>PvZBundleManagerPlugin</AssemblyName>
 		<AssemblyTitle>PvZBundleManagerPlugin</AssemblyTitle>
@@ -43,21 +43,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj">
-			<Private>false</Private>
-		</ProjectReference>
-		<ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj">
-			<Private>false</Private>
-		</ProjectReference>
-		<ProjectReference Include="..\..\FrostyHash\FrostyHash.vcxproj">
-			<Private>false</Private>
-		</ProjectReference>
-		<ProjectReference Include="..\..\FrostyModSupport\FrostyModSupport.csproj">
-			<Private>false</Private>
-		</ProjectReference>
-		<ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj">
-			<Private>false</Private>
-		</ProjectReference>
+	  <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj" />
+	  <ProjectReference Include="..\..\FrostyHash\FrostyHash.csproj" />
+	  <ProjectReference Include="..\..\FrostyModSupport\FrostyModSupport.csproj" />
+	  <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj" />
+	  <ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -65,6 +55,10 @@
 	</ItemGroup>
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-		<Exec Command="xcopy /Y &quot;$(TargetPath)&quot; &quot;$(SolutionDir)$(OutDir)Plugins\&quot;" />
+		<ItemGroup>
+			<PluginFiles Include="$(TargetDir)$(ProjectName).*" />
+		</ItemGroup>
+
+		<Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(SolutionDir)FrostyEditor\$(OutDir)Plugins\" />
 	</Target>
 </Project>

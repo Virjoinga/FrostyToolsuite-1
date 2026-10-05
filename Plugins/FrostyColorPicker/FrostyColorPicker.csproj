@@ -1,8 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Configurations>Developer - Debug;Release - Alpha;Release - Beta;Release - Final</Configurations>
     <Platforms>x64</Platforms>
-    <TargetFrameworks>net48</TargetFrameworks>
+    <TargetFrameworks>net10.0-windows</TargetFrameworks>
     <AssemblyTitle>BlankPlugin</AssemblyTitle>
     <Product>BlankPlugin</Product>
     <Copyright>Copyright ©  2020</Copyright>
@@ -10,6 +10,7 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <UseWPF>true</UseWPF>
     <OutputType>Library</OutputType>
+	  <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Developer - Debug|x64' ">
@@ -37,34 +38,22 @@
   </PropertyGroup>
   
   <ItemGroup>
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.39" />
-    <PackageReference Include="PixiEditor.ColorPicker" Version="3.3.1" />
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.142" />
+    <PackageReference Include="PixiEditor.ColorPicker" Version="3.4.2.3" />
   </ItemGroup>
-
+  
   <ItemGroup>
-    <Reference Include="FrostyControls">
-      <HintPath>..\..\FrostyControls\bin\Developer\Debug\FrostyControls.dll</HintPath>
-    </Reference>
-    <Reference Include="FrostyCore">
-      <HintPath>..\..\FrostyEditor\bin\Developer\Debug\FrostyCore.dll</HintPath>
-    </Reference>
-    <Reference Include="FrostySdk">
-      <HintPath>..\..\FrostySdk\bin\Developer\Debug\FrostySdk.dll</HintPath>
-    </Reference>
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
-    <Reference Include="System.Xaml" />
-    <Reference Include="WindowsBase" />
+    <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj" />
+    <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj" />
+    <ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj" />
   </ItemGroup>
 
 <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+		<ItemGroup>
+			<PluginFiles Include="$(TargetDir)$(ProjectName).*" />
+		</ItemGroup>
 
-    <Exec Command="xcopy /Y &quot;$(TargetPath)&quot; &quot;$(SolutionDir)$(OutDir)Plugins\&quot;" />
-
-    <Exec Command="xcopy /Y &quot;$(OutputPath)ColorPicker.dll&quot; &quot;$(SolutionDir)$(OutDir)&quot;" />
-	
-    <Exec Command="xcopy /Y &quot;$(OutputPath)Microsoft.Xaml.Behaviors.dll&quot; &quot;$(SolutionDir)$(OutDir)&quot;" />
-</Target>
+		<Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(SolutionDir)FrostyEditor\$(OutDir)Plugins\" />
+	</Target>
 
 </Project>

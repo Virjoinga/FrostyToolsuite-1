@@ -704,7 +704,7 @@ namespace FrostySdk
             }
 
             AssemblyName name = new AssemblyName(ModuleName);
-            m_assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(name, AssemblyBuilderAccess.Run);
+            m_assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(name, AssemblyBuilderAccess.Run);
             m_moduleBuilder = m_assemblyBuilder.DefineDynamicModule(ModuleName);
         }
 
@@ -928,8 +928,10 @@ namespace FrostySdk
         public static void BuildModule(string sdkFilename, DbObject classList)
         {
             AssemblyName name = new AssemblyName(ModuleName);
-            m_assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(name, AssemblyBuilderAccess.Save);
-            m_moduleBuilder = m_assemblyBuilder.DefineDynamicModule(ModuleName, sdkFilename + ".dll");
+
+            var builder = new PersistedAssemblyBuilder(name, typeof(object).Assembly);
+            m_assemblyBuilder = builder;
+            m_moduleBuilder = m_assemblyBuilder.DefineDynamicModule(ModuleName);
 
             foreach (DbObject classObj in classList)
             {
@@ -1043,7 +1045,7 @@ namespace FrostySdk
                     }, metaData);
             }
 
-            m_assemblyBuilder.Save(sdkFilename + ".dll");
+            builder.Save(sdkFilename + ".dll");
         }
 
         private static Type GetTypeFromEbxType(EbxFieldType inType, string baseType, int arrayType = -1)

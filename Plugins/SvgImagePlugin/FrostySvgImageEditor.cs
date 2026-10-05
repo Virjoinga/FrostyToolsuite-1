@@ -15,8 +15,8 @@ using System.Xml;
 using Frosty.Core.Controls;
 using Frosty.Core;
 using Frosty.Core.Windows;
+using Vector2 = System.Numerics.Vector2;
 using FrostySdk.Managers.Entries;
-using Vector2 = SharpDX.Vector2;
 
 namespace SvgImagePlugin
 {
@@ -58,11 +58,11 @@ namespace SvgImagePlugin
 
         public override List<ToolbarItem> RegisterToolbarItems()
         {
-            List<ToolbarItem> toolbarItems = base.RegisterToolbarItems();
-            toolbarItems.Add(new ToolbarItem("Export", "Export SVG", "FrostyEditor;component/Images/Export.png", new RelayCommand((object state) => { ExportButton_Click(this, new RoutedEventArgs()); })));
-            toolbarItems.Add(new ToolbarItem("Import", "Import SVG", "FrostyEditor;component/Images/Import.png", new RelayCommand((object state) => { ImportButton_Click(this, new RoutedEventArgs()); })));
-
-            return toolbarItems;
+            return new List<ToolbarItem>()
+            {
+                new ToolbarItem("Export", "Export SVG", "Images/Export.png", new RelayCommand((object state) => { ExportButton_Click(this, new RoutedEventArgs()); })),
+                new ToolbarItem("Import", "Import SVG", "Images/Import.png", new RelayCommand((object state) => { ImportButton_Click(this, new RoutedEventArgs()); })),
+            };
         }
 
         private void ImportButton_Click(object sender, RoutedEventArgs e)

@@ -1,171 +1,117 @@
 ﻿using Frosty.Controls;
 using Frosty.Core;
 using Frosty.Core.Controls;
+using Frosty.Core.Converters;
 using FrostySdk.Managers;
+using FrostySdk.Managers.Entries;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using FrostySdk.Managers.Entries;
+using System.Windows.Data;
+using System.Windows.Media;
 
-namespace ReferencesPlugin
+namespace ReferencesPlugin;
+
+[TemplatePart(Name = "PART_RefExplorerToTextBlock", Type = typeof(TextBlock))]
+[TemplatePart(Name = "PART_RefExplorerFromTextBlock", Type = typeof(TextBlock))]
+[TemplatePart(Name = "PART_RefExplorerToListView", Type = typeof(FrostyAssetListView))]
+[TemplatePart(Name = "PART_RefExplorerFromListView", Type = typeof(FrostyAssetListView))]
+public class ReferenceTabItem : FrostyTabItem
 {
-    [TemplatePart(Name = PART_RefExplorerToTextBlock, Type = typeof(TextBlock))]
-    [TemplatePart(Name = PART_RefExplorerFromTextBlock, Type = typeof(TextBlock))]
-    [TemplatePart(Name = PART_RefExplorerToListView, Type = typeof(FrostyAssetListView))]
-    [TemplatePart(Name = PART_RefExplorerFromListView, Type = typeof(FrostyAssetListView))]
-    public class ReferenceTabItem : FrostyTabItem
+    private FrostyAssetListView toList, fromList;
+    private TextBlock toText, fromText;
+    private Guid currentGuid = Guid.Empty;
+
+    static ReferenceTabItem() =>
+        DefaultStyleKeyProperty.OverrideMetadata(typeof(ReferenceTabItem), new FrameworkPropertyMetadata(typeof(ReferenceTabItem)));
+
+    public override void OnApplyTemplate()
     {
-        private const string PART_RefExplorerToTextBlock = "PART_RefExplorerToTextBlock";
-        private const string PART_RefExplorerFromTextBlock = "PART_RefExplorerFromTextBlock";
-        private const string PART_RefExplorerToListView = "PART_RefExplorerToListView";
-        private const string PART_RefExplorerFromListView = "PART_RefExplorerFromListView";
-        private const string PART_RefExplorerToOpenItem = "PART_RefExplorerToOpenItem";
-        private const string PART_RefExplorerFromOpenItem = "PART_RefExplorerFromOpenItem";
+        base.OnApplyTemplate();
 
-        private const string PART_RefExplorerToFindItem = "PART_RefExplorerToFindItem";
-        private const string PART_RefExplorerFromFindItem = "PART_RefExplorerFromFindItem";
+        T Get<T>(string name) where T : DependencyObject => GetTemplateChild(name) as T;
 
-        private FrostyAssetListView refExplorerToList;
-        private FrostyAssetListView refExplorerFromList;
-        private TextBlock refExplorerToText;
-        private TextBlock refExplorerFromText;
-        private MenuItem refExplorerToOpenItem;
-        private MenuItem refExplorerFromOpenItem;
+        // Bind References Asset List View Elements
+        toList = Get<FrostyAssetListView>("PART_RefExplorerToListView");
+        fromList = Get<FrostyAssetListView>("PART_RefExplorerFromListView");
 
-        private MenuItem refExplorerToFindItem;
-        private MenuItem refExplorerFromFindItem;
+        // Bind References Textblock Elements
+        toText = Get<TextBlock>("PART_RefExplorerToTextBlock");
+        fromText = Get<TextBlock>("PART_RefExplorerFromTextBlock");
 
-        static ReferenceTabItem()
+        void BindMenu(string name, FrostyAssetListView list, Action<AssetEntry> action)
         {
-            DefaultStyleKeyProperty.OverrideMetadata(typeof(ReferenceTabItem), new FrameworkPropertyMetadata(typeof(ReferenceTabItem)));
+            if (Get<MenuItem>(name) is { } m)
+                m.Click += (_, _) => { if (list?.SelectedItem is AssetEntry entry) action(entry); };
         }
 
-        public ReferenceTabItem()
+        // Open Asset
+        BindMenu("PART_RefExplorerToOpenItem", toList, e => App.EditorWindow.OpenAsset(e));
+        BindMenu("PART_RefExplorerFromOpenItem", fromList, e => App.EditorWindow.OpenAsset(e));
+
+        // Find Item in Data Explorer
+        BindMenu("PART_RefExplorerToFindItem", toList, e => App.EditorWindow.DataExplorer.SelectAsset(e));
+        BindMenu("PART_RefExplorerFromFindItem", fromList, e => App.EditorWindow.DataExplorer.SelectAsset(e));
+
+        void OnDoubleClick(object s, RoutedEventArgs e)
         {
+            if (s is FrostyAssetListView { SelectedItem: EbxAssetEntry entry })
+                App.EditorWindow.OpenAsset(entry);
         }
 
-        public override void OnApplyTemplate()
-        {
-            base.OnApplyTemplate();
+        // Double Click Asset to Open
+        if (toList is not null) toList.SelectedAssetDoubleClick += OnDoubleClick;
+        if (fromList is not null) fromList.SelectedAssetDoubleClick += OnDoubleClick;
 
-            // Bind References Asset List View Elements
-            refExplorerToList = GetTemplateChild(PART_RefExplorerToListView) as FrostyAssetListView;
-            refExplorerFromList = GetTemplateChild(PART_RefExplorerFromListView) as FrostyAssetListView;
-
-            // Bind References Textblock Elements
-            refExplorerToText = GetTemplateChild(PART_RefExplorerToTextBlock) as TextBlock;
-            refExplorerFromText = GetTemplateChild(PART_RefExplorerFromTextBlock) as TextBlock;
-
-            // Bind Open Asset Elements
-            refExplorerToOpenItem = GetTemplateChild(PART_RefExplorerToOpenItem) as MenuItem;
-            refExplorerFromOpenItem = GetTemplateChild(PART_RefExplorerFromOpenItem) as MenuItem;
-
-            // Bind Find Asset Elements
-            refExplorerToFindItem = GetTemplateChild(PART_RefExplorerToFindItem) as MenuItem;
-            refExplorerFromFindItem = GetTemplateChild(PART_RefExplorerFromFindItem) as MenuItem;
-
-            // Double Click Asset to Open
-            refExplorerToList.SelectedAssetDoubleClick += ReferenceExplorerList_SelectedAssetDoubleClick;
-            refExplorerFromList.SelectedAssetDoubleClick += ReferenceExplorerList_SelectedAssetDoubleClick;
-
-            // Open Asset
-            refExplorerToOpenItem.Click += contextMenuRefExplorerToOpen_Click;
-            refExplorerFromOpenItem.Click += contextMenuRefExplorerFromOpen_Click;
-
-            // Find Item in Data Explorer
-            refExplorerToFindItem.Click += contextMenuRefExplorerToFind_Click;
-            refExplorerFromFindItem.Click += contextMenuRefExplorerFromFind_Click;
-
-            Loaded += ReferenceTabItem_Loaded;
-
-            App.EditorWindow.DataExplorer.SelectionChanged += dataExplorer_SelectionChanged;
-        }
-
-        private void ReferenceTabItem_Loaded(object sender, RoutedEventArgs e)
-        {
-            EbxAssetEntry selectedEntry = App.SelectedAsset;
-
-            RefreshReferences(selectedEntry);
-        }
-
-        private void dataExplorer_SelectionChanged(object sender, RoutedEventArgs e)
-        {
-            EbxAssetEntry selectedEntry = App.SelectedAsset;
-
-            RefreshReferences(selectedEntry);
-        }
-
-        private void ReferenceExplorerList_SelectedAssetDoubleClick(object sender, RoutedEventArgs e)
-        {
-            EbxAssetEntry entry = (sender as FrostyAssetListView).SelectedItem as EbxAssetEntry;
-            if (entry == null)
-                return;
-
-            App.EditorWindow.OpenAsset(entry);
-        }
-
-        private void contextMenuRefExplorerToOpen_Click(object sender, RoutedEventArgs e)
-        {
-            if (refExplorerToList.SelectedItem == null)
-                return;
-            App.EditorWindow.OpenAsset(refExplorerToList.SelectedItem);
-        }
-
-        private void contextMenuRefExplorerFromOpen_Click(object sender, RoutedEventArgs e)
-        {
-            if (refExplorerFromList.SelectedItem == null)
-                return;
-            App.EditorWindow.OpenAsset(refExplorerFromList.SelectedItem);
-        }
-
-        private void contextMenuRefExplorerToFind_Click(object sender, RoutedEventArgs e)
-        {
-            if (refExplorerToList.SelectedItem == null)
-                return;
-            App.EditorWindow.DataExplorer.SelectAsset(refExplorerToList.SelectedItem);
-        }
-
-        private void contextMenuRefExplorerFromFind_Click(object sender, RoutedEventArgs e)
-        {
-            if (refExplorerFromList.SelectedItem == null)
-                return;
-            App.EditorWindow.DataExplorer.SelectAsset(refExplorerFromList.SelectedItem);
-        }
-
-        private void RefreshReferences(EbxAssetEntry entry)
-        {
-            //if (!ReferencesTabItem.IsSelected)
-            //    return;
-
-            if (entry == null)
-            {
-                refExplorerFromText.Text = "";
-                refExplorerToText.Text = "No asset selected";
-                refExplorerFromList.ItemsSource = null;
-                refExplorerToList.ItemsSource = null;
-                return;
-            }
-
-            refExplorerFromText.Text = "References from " + entry.Filename;
-            refExplorerToText.Text = "References to " + entry.Filename;
-
-            List<EbxAssetEntry> refToItems = new List<EbxAssetEntry>();
-            List<EbxAssetEntry> refFromItems = new List<EbxAssetEntry>();
-
-            foreach (EbxAssetEntry subEntry in App.AssetManager.EnumerateEbx())
-            {
-                if (subEntry.ContainsDependency(entry.Guid))
-                    refToItems.Add(subEntry);
-            }
-            foreach (Guid guid in entry.EnumerateDependencies())
-                refFromItems.Add(App.AssetManager.GetEbxEntry(guid));
-
-            refExplorerToList.ItemsSource = refToItems;
-            refExplorerFromList.ItemsSource = refFromItems;
-        }
+        Loaded += (_, _) => RefreshReferences(App.SelectedAsset);
+        App.EditorWindow.DataExplorer.SelectionChanged += (_, _) => RefreshReferences(App.SelectedAsset);
     }
+
+    private void RefreshReferences(EbxAssetEntry entry)
+    {
+        if (entry == null)
+        {
+            currentGuid = Guid.Empty;
+            fromText.Text = "";
+            toText.Text = "No asset selected";
+            fromList.ItemsSource = toList.ItemsSource = null;
+            return;
+        }
+
+        if (entry.Guid == currentGuid) return;
+        currentGuid = entry.Guid;
+
+        fromText.Text = $"References from {entry.Filename}";
+        toText.Text = $"References to {entry.Filename}";
+
+        // Collect outgoing references
+        fromList.ItemsSource = entry.EnumerateDependencies()
+            .Select(App.AssetManager.GetEbxEntry)
+            .Where(d => d != null).ToList();
+
+        // Collect incoming references
+        toList.ItemsSource = App.AssetManager.EnumerateEbx()
+            .Where(sub => sub.ContainsDependency(entry.Guid)).ToList();
+    }
+}
+
+public class FastAssetIconConverter : IValueConverter
+{
+    private static readonly Dictionary<string, ImageSource> IconCache = [];
+    private static readonly StringToBitmapSourceConverter CoreConverter = new();
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is not AssetEntry entry) return null;
+        if (IconCache.TryGetValue(entry.Type, out var icon)) return icon;
+
+        return IconCache[entry.Type] = (ImageSource)(
+            App.PluginManager.GetAssetDefinition(entry.Type)?.GetIcon() ??
+            CoreConverter.Convert(entry.Type, targetType, parameter, culture));
+    }
+
+    public object ConvertBack(object v, Type t, object p, CultureInfo c) => throw new NotImplementedException();
 }

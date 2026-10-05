@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+
 namespace FrostySdk.Managers.Entries
 {
     public enum ResourceType : uint
@@ -123,9 +128,14 @@ namespace FrostySdk.Managers.Entries
     
     public class ResAssetEntry : AssetEntry
     {
-        public override string Type => ((ResourceType)ResType).ToString();
+        // cache type names because reflection is slow
+        private static readonly Dictionary<uint, string> ResourceTypeNameMap = Enum.GetValues(typeof(ResourceType))
+        .Cast<ResourceType>()
+        .ToDictionary(rt => (uint)rt, rt => rt.ToString());
+
+        public override string Type => ResourceTypeNameMap.TryGetValue(ResType, out string name) ? name : ResType.ToString();
         public override string AssetType => "res";
-        public override string Name
+        /*public override string Name
         {
             get
             {
@@ -138,7 +148,7 @@ namespace FrostySdk.Managers.Entries
 
                 return base.Name;
             }
-        }
+        }*/
 
         public ulong ResRid;
         public uint ResType;

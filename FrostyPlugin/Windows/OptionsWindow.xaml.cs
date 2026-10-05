@@ -169,6 +169,12 @@ namespace Frosty.Core.Windows
         public string ModSettingsAuthor { get; set; } = "";
 
         [Category("Editor")]
+        [DisplayName("Launch Target Override")]
+        [Description("If set, launches will run the specified target instead of the game's executable.")]
+        [EbxFieldMeta(EbxFieldType.String)]
+        public string LaunchTargetOverride { get; set; } = "";
+
+        [Category("Editor")]
         [DisplayName("Display Module in Class Id")]
         [Description("Determines whether a class's default Id, when viewed in the property grid, is prepended with the module name of that class.\r\n\r\nTrue: Entity.MathEntityData\r\nFalse: MathEntityData")]
         [EbxFieldMeta(EbxFieldType.Boolean)]
@@ -211,10 +217,10 @@ namespace Frosty.Core.Windows
             DiscordEnabled = Config.Get<bool>("DiscordRPCEnabled", false);
             ModSettingsAuthor = Config.Get<string>("ModAuthor", "");
 
-
             ExportTabSize = Config.Get<int>("ExportTabSize", 2);
             ExportWithOffsets = Config.Get<bool>("ExportWithOffsets", false);
 
+            LaunchTargetOverride = Config.Get<string>("LaunchTargetOverride", "", ConfigScope.Game);
             AssetDisplayModuleInId = Config.Get<bool>("DisplayModuleInId", false);
             RememberChoice = Config.Get<bool>("UseDefaultProfile", false);
 
@@ -245,6 +251,7 @@ namespace Frosty.Core.Windows
             Config.Add("ExportTabSize", ExportTabSize);
             Config.Add("ExportWithOffsets", ExportWithOffsets);
 
+            Config.Add("LaunchTargetOverride", LaunchTargetOverride, ConfigScope.Game);
             Config.Add("DisplayModuleInId", AssetDisplayModuleInId);
             Config.Add("UseDefaultProfile", RememberChoice);
 

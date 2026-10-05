@@ -7,6 +7,7 @@ using FrostySdk.Interfaces;
 using FrostySdk.IO;
 using FrostySdk.Managers;
 using FrostySdk.Managers.Entries;
+using Microsoft.Win32;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using System;
@@ -2244,20 +2245,30 @@ namespace Frosty.ModSupport
 
             try
             {
-                // ExecuteProcess($"{m_fs.BasePath + ProfilesLibrary.ProfileName}.exe", $"-dataPath \"{modDataPath.Trim('\\')}\" {additionalArgs}");
-                string steamAppIdPath = $"{m_fs.BasePath}steam_appid.txt";
-                if (File.Exists(steamAppIdPath))
+                string launchTgt = Config.Get("LaunchTargetOverride", string.Empty, ConfigScope.Game);
+                if(!string.IsNullOrWhiteSpace(launchTgt))
                 {
-                    string steamAppId = File.ReadAllLines(steamAppIdPath).First();
-                    string arguments = $"-dataPath \"{m_modDirName.Replace('\\', '/')}\" {additionalArgs}";
-                    string url = Uri.EscapeDataString(arguments);
-                    App.Logger.Log($"Launch: {arguments}");
-                    App.Logger.Log($"Encoded: {url}");
-                    Process.Start($"steam://run/{steamAppId}//{url}/");
+                    if (!File.Exists(launchTgt))
+                        throw new ArgumentException($"Target does not exist: {launchTgt}");
+
+                    ExecuteProcess(launchTgt);
                 }
                 else
                 {
-                    ExecuteProcess($"{m_fs.BasePath + ProfilesLibrary.ProfileName}.exe", $"-dataPath \"{modDataPath.Trim('\\')}\" {additionalArgs}");
+                    string steamAppIdPath = $"{m_fs.BasePath}steam_appid.txt";
+                    if (File.Exists(steamAppIdPath))
+                    {
+                        string steamAppId = File.ReadAllLines(steamAppIdPath).First();
+                        string arguments = $"-dataPath \"{m_modDirName.Replace('\\', '/')}\" {additionalArgs}";
+                        string url = Uri.EscapeDataString(arguments);
+                        App.Logger.Log($"Launch: {arguments}");
+                        App.Logger.Log($"Encoded: {url}");
+                        Process.Start($"steam://run/{steamAppId}//{url}/");
+                    }
+                    else
+                    {
+                        ExecuteProcess($"{m_fs.BasePath + ProfilesLibrary.ProfileName}.exe", $"-dataPath \"{modDataPath.Trim('\\')}\" {additionalArgs}");
+                    }
                 }
             }
             catch (Exception ex)
@@ -2775,21 +2786,47 @@ namespace Frosty.ModSupport
             }
         }
 
+        private bool IsWindowsDeveloperModeEnabled()
+        {
+            using RegistryKey? key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock");
+
+            return key?.GetValue("AllowDevelopmentWithoutDevLicense") is int value && value == 1;
+        }
+
         private bool RunSymbolicLinkProcess(List<SymLinkStruct> cmdArgs)
         {
-            using (TextWriter writer = new StreamWriter(new FileStream(AppDomain.CurrentDomain.BaseDirectory + "\\run.bat", FileMode.Create)))
+            bool isWindowsDevMode = IsWindowsDeveloperModeEnabled();
+
+            if (isWindowsDevMode)
             {
+                // if dev mode is enabled, we can create the symlinks without a command prompt
                 foreach (SymLinkStruct arg in cmdArgs)
-                    writer.WriteLine("mklink" + ((arg.isFolder) ? "/D " : " ") + "\"" + arg.dest + "\" \"" + arg.src + "\"");
+                {
+                    if (arg.isFolder)
+                        Directory.CreateSymbolicLink(arg.dest, arg.src);
+                    else
+                        File.CreateSymbolicLink(arg.dest, arg.src);
+                }
             }
-
-            // create data and update symbolic links
-            ExecuteProcess("cmd.exe", "/C \"" + AppDomain.CurrentDomain.BaseDirectory + "\\run.bat\"", true, true);
-
-            // delete batch
-            if (File.Exists("run.bat"))
+            else
             {
-                File.Delete("run.bat");
+                using (TextWriter writer = new StreamWriter(new FileStream(AppDomain.CurrentDomain.BaseDirectory + "\\run.bat", FileMode.Create)))
+                {
+                    foreach (SymLinkStruct arg in cmdArgs)
+                    {
+                        string mklinkCmd = arg.isFolder ? "mklink /D " : "mklink ";
+                        writer.WriteLine(mklinkCmd + "\"" + arg.dest + "\" \"" + arg.src + "\"");
+                    }
+                }
+
+                // create data and update symbolic links
+                ExecuteProcess("cmd.exe", "/C \"" + AppDomain.CurrentDomain.BaseDirectory + "\\run.bat\"", true, true);
+
+                // delete batch
+                if (File.Exists("run.bat"))
+                {
+                    File.Delete("run.bat");
+                }
             }
 
             // validate

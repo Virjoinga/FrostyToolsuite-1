@@ -1,54 +1,98 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
-	<PropertyGroup>
-		<Configurations>Developer - Debug;Release - Alpha;Release - Beta;Release - Final</Configurations>
-		<Platforms>x64</Platforms>
-		<TargetFrameworks>net48</TargetFrameworks>
-		<AssemblyTitle>SoundEditorPlugin</AssemblyTitle>
-		<Product>SoundEditorPlugin</Product>
-		<Copyright>Copyright ©  2020</Copyright>
-		<CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-		<UseWPF>true</UseWPF>
-		<OutputType>Library</OutputType>
-		<NeutralLanguage>en</NeutralLanguage>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Developer - Debug|x64'">
-		<DebugSymbols>true</DebugSymbols>
-		<OutputPath>bin\Developer\Debug\</OutputPath>
-		<DefineConstants>TRACE;DEBUG;FROSTY_DEVELOPER</DefineConstants>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release - Alpha|x64'">
-		<OutputPath>bin\Release\Alpha\</OutputPath>
-		<DefineConstants>TRACE</DefineConstants>
-		<Optimize>true</Optimize>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release - Beta|x64'">
-		<OutputPath>bin\Release\Beta\</OutputPath>
-		<DefineConstants>TRACE</DefineConstants>
-		<Optimize>true</Optimize>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release - Final|x64'">
-		<OutputPath>bin\Release\Final\</OutputPath>
-		<DefineConstants>TRACE</DefineConstants>
-		<Optimize>true</Optimize>
-	</PropertyGroup>
-
-	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-		<Exec Command="xcopy /Y &quot;$(TargetPath)&quot; &quot;$(SolutionDir)$(OutDir)Plugins\&quot;" />
-	</Target>
-
-	<ItemGroup>
-		<None Remove="Resources\eaxmaenc.dll" />
-		<None Remove="Resources\libatrac9.dll" />
-		<None Remove="Resources\libmp3lame.dll" />
-		<None Remove="Resources\Tool" />
-		<None Remove="Resources\Tool.lib.zip" />
-		<None Remove="Resources\vgmstream.zip" />
-	</ItemGroup>
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Configurations>Developer - Debug;Release - Alpha;Release - Beta;Release - Final</Configurations>
+    <Platforms>x64</Platforms>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyTitle>SoundEditorPlugin</AssemblyTitle>
+    <Product>SoundEditorPlugin</Product>
+    <Copyright>Copyright ©  2020</Copyright>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <UseWPF>true</UseWPF>
+    <OutputType>Library</OutputType>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Developer - Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\Developer\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;FROSTY_DEVELOPER</DefineConstants>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release - Alpha|x64'">
+    <OutputPath>bin\Release\Alpha\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release - Beta|x64'">
+    <OutputPath>bin\Release\Beta\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release - Final|x64'">
+    <OutputPath>bin\Release\Final\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  
+  <ItemDefinitionGroup>
+    <!-- Enable `GeneratePathProperty` for all `PackageReference`s. -->
+    <PackageReference GeneratePathProperty="true" />
+  </ItemDefinitionGroup>
+    
+  <ItemGroup>      
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="NAudio.Asio" Version="2.2.1" />
+    <PackageReference Include="NAudio.Core" Version="2.2.1" />
+    <PackageReference Include="NAudio.Midi" Version="2.2.1" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="NAudio.WaveFormRenderer" Version="2.0.0" />
+    <PackageReference Include="NAudio.WinForms" Version="2.2.1" />
+    <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
+    <PackageReference Include="SharpGen.Runtime" Version="2.4.2-beta" />
+    <PackageReference Include="SharpGen.Runtime.COM" Version="2.4.2-beta" />
+    <PackageReference Include="Vortice.DirectX" Version="3.8.2" />
+    <PackageReference Include="Vortice.Mathematics" Version="2.1.0" />
+    <PackageReference Include="Vortice.XAudio2" Version="3.8.2" />
+  </ItemGroup>
+    
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <ItemGroup>
+      <PluginFiles Include="$(TargetDir)$(ProjectName).*" />
+      <ThirdPartyFolder Include="$(SolutionDir)FrostyEditor\$(OutDir)ThirdParty\" />
+    </ItemGroup>
+    
+    <Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(SolutionDir)FrostyEditor\$(OutDir)Plugins\" />
+      
+    <Copy SourceFiles="$(PkgNAudio_Core)\lib\netstandard2.0\NAudio.Core.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio_WinMM)\lib\netstandard2.0\NAudio.WinMM.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio_WinForms)\lib\netcoreapp3.1\NAudio.WinForms.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio_WaveFormRenderer)\lib\netstandard2.0\NAudio.WaveFormRenderer.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio_Wasapi)\lib\netstandard2.0\NAudio.Wasapi.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio_Midi)\lib\netstandard2.0\NAudio.Midi.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio_Asio)\lib\netstandard2.0\NAudio.Asio.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgNAudio)\lib\net6.0-windows7.0\NAudio.dll" DestinationFolder="@(ThirdPartyFolder)" />
+      
+    <Copy SourceFiles="$(PkgSharpGen_Runtime)\lib\net9.0\SharpGen.Runtime.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgSharpGen_Runtime_COM)\lib\net9.0\SharpGen.Runtime.COM.dll" DestinationFolder="@(ThirdPartyFolder)" />
+      
+    <Copy SourceFiles="$(PkgVortice_DirectX)\lib\net10.0\Vortice.DirectX.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgVortice_Mathematics)\lib\net10.0\Vortice.Mathematics.dll" DestinationFolder="@(ThirdPartyFolder)" />
+    <Copy SourceFiles="$(PkgVortice_XAudio2)\lib\net10.0\Vortice.XAudio2.dll" DestinationFolder="@(ThirdPartyFolder)" />
+  </Target>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj" />
+    <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj" />
+    <ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <Resource Include="Images\SoundFileType.png" />
+  </ItemGroup>
 
 	<ItemGroup>
 		<EmbeddedResource Include="Resources\Tool.lib.zip">
@@ -59,50 +103,4 @@
 		</EmbeddedResource>
 	</ItemGroup>
 
-	<ItemGroup>
-		<PackageReference Include="System.Drawing.Common" Version="8.0.10" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<Reference Include="NAudio">
-			<HintPath>..\..\FrostyEditor\ThirdParty\NAudio.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="NAudio.WaveFormRenderer">
-			<HintPath>..\..\FrostyEditor\ThirdParty\NAudio.WaveFormRenderer.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="SharpDX">
-			<HintPath>..\..\FrostyEditor\ThirdParty\SharpDX.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="SharpDX.XAudio2">
-			<HintPath>..\..\FrostyEditor\ThirdParty\SharpDX.XAudio2.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="System.IO.Compression" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj">
-			<Private>false</Private>
-		</ProjectReference>
-		<ProjectReference Include="..\..\FrostyHash\FrostyHash.vcxproj" />
-		<ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj">
-			<Private>false</Private>
-		</ProjectReference>
-		<ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj">
-			<Private>false</Private>
-		</ProjectReference>
-	</ItemGroup>
-
-	<ItemGroup>
-		<Resource Include="Images\SoundFileType.png" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<None Update="Resources\90467cb7b85c4a8c89d09610e10114f5">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</None>
-	</ItemGroup>
 </Project>

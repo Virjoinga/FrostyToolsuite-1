@@ -1,0 +1,225 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Developer - Debug" />
+    <BuildType Name="Release" />
+    <BuildType Name="Release - Alpha" />
+    <BuildType Name="Release - Beta" />
+    <BuildType Name="Release - Final" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/Plugins/">
+    <Project Path="Plugins/AssetBankPlugin/AssetBankPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/AtlasTexturePlugin/AtlasTexturePlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/BlankPlugin/BlankPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+      <Build Project="false" />
+    </Project>
+    <Project Path="Plugins/BlueprintEditorPlugin/BlueprintEditorPlugin.csproj">
+      <BuildType Solution="Release - Alpha|*" Project="Developer - Debug" />
+      <BuildType Solution="Release - Beta|*" Project="Developer - Debug" />
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/BundleEditorPlugin/BundleEditorPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/ChunkResExplorerPlugin/ChunkResEditorPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/ConnectionPlugin/ConnectionPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/ConversationPlugin/ConversationPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/CopyFilePathPlugin/CopyFilePathPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/CustomizationCreatorPlugin/CustomizationCreatorPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/DuplicationPlugin/DuplicationPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/EbxToXmlPlugin/EbxToXmlPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/FNV-1HashCalculatorPlugin/FNVHashCalculatorPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/FrostyColorPicker/FrostyColorPicker.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/FrostyEmitterStackPlugin/ScalableEmitterEditorPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/FrostyMathEntityExtender/MathExtender.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/FrostyMovieTexture2AssetEditor/MovieTexture2AssetEditorPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/FrostyProjectMerger/ProjectMerger.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/FsLocalizationPlugin/FsLocalizationPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/IesResourcePlugin/IesResourcePlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/LocalizedStringPlugin/LocalizedStringPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/LuaPlugin/LuaPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/MeshSetPlugin/MeshSetPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/ObjectVariationPlugin/ObjectVariationPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/PVZBundleManagerPlugin/PvZBundleManagerPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/ReferencesPlugin/ReferencesPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/RefreshMeshVariationsPlugin/RefreshMeshVariationsPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/RenamePlugin/RenamePlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/RootInstanceEntriesPlugin/RootInstanceEntriesPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/ScriptAssetPlugin/ScriptAssetPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/SkeletonImportFromXmlPlugin/SkeletonImportFromXmlPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/SoundEditorPlugin/SoundEditorPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/SvgImagePlugin/SvgImagePlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/TestPlugin/TestPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/TexturePlugin/TexturePlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/TypeExplorerPlugin/TypeExplorerPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Final" />
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="Plugins/WeaponCreatorPlugin/WeaponCreatorPlugin.csproj">
+      <BuildType Solution="Release|*" Project="Release - Alpha" />
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
+  <Project Path="FrostyCmd/FrostyCmd.csproj" Id="500acab7-d948-4bca-8208-20812d712ddb">
+    <BuildType Solution="Release|*" Project="Release - Final" />
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="FrostyControls/FrostyControls.csproj">
+    <BuildType Solution="Release|*" Project="Release - Final" />
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="FrostyEditor/FrostyEditor.csproj">
+    <BuildDependency Project="Plugins/AtlasTexturePlugin/AtlasTexturePlugin.csproj" />
+    <BuildDependency Project="Plugins/BlankPlugin/BlankPlugin.csproj" />
+    <BuildDependency Project="Plugins/BundleEditorPlugin/BundleEditorPlugin.csproj" />
+    <BuildDependency Project="Plugins/ChunkResExplorerPlugin/ChunkResEditorPlugin.csproj" />
+    <BuildDependency Project="Plugins/ConnectionPlugin/ConnectionPlugin.csproj" />
+    <BuildDependency Project="Plugins/ConversationPlugin/ConversationPlugin.csproj" />
+    <BuildDependency Project="Plugins/DuplicationPlugin/DuplicationPlugin.csproj" />
+    <BuildDependency Project="Plugins/EbxToXmlPlugin/EbxToXmlPlugin.csproj" />
+    <BuildDependency Project="Plugins/FsLocalizationPlugin/FsLocalizationPlugin.csproj" />
+    <BuildDependency Project="Plugins/IesResourcePlugin/IesResourcePlugin.csproj" />
+    <BuildDependency Project="Plugins/LocalizedStringPlugin/LocalizedStringPlugin.csproj" />
+    <BuildDependency Project="Plugins/LuaPlugin/LuaPlugin.csproj" />
+    <BuildDependency Project="Plugins/MeshSetPlugin/MeshSetPlugin.csproj" />
+    <BuildDependency Project="Plugins/ObjectVariationPlugin/ObjectVariationPlugin.csproj" />
+    <BuildDependency Project="Plugins/ReferencesPlugin/ReferencesPlugin.csproj" />
+    <BuildDependency Project="Plugins/RefreshMeshVariationsPlugin/RefreshMeshVariationsPlugin.csproj" />
+    <BuildDependency Project="Plugins/RootInstanceEntriesPlugin/RootInstanceEntriesPlugin.csproj" />
+    <BuildDependency Project="Plugins/SoundEditorPlugin/SoundEditorPlugin.csproj" />
+    <BuildDependency Project="Plugins/SvgImagePlugin/SvgImagePlugin.csproj" />
+    <BuildDependency Project="Plugins/TestPlugin/TestPlugin.csproj" />
+    <BuildDependency Project="Plugins/TexturePlugin/TexturePlugin.csproj" />
+    <BuildDependency Project="Plugins/TypeExplorerPlugin/TypeExplorerPlugin.csproj" />
+    <BuildType Solution="Release|*" Project="Release - Final" />
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="FrostyHash/FrostyHash.csproj">
+    <BuildType Solution="Release|*" Project="Release - Final" />
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="FrostyModManager/FrostyModManager.csproj">
+    <BuildDependency Project="Plugins/FsLocalizationPlugin/FsLocalizationPlugin.csproj" />
+    <BuildDependency Project="Plugins/MeshSetPlugin/MeshSetPlugin.csproj" />
+    <BuildType Solution="Release|*" Project="Release - Final" />
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="FrostyModSupport/FrostyModSupport.csproj">
+    <BuildType Solution="Release|*" Project="Release - Final" />
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="FrostyPlugin/FrostyCore.csproj">
+    <BuildType Solution="Release|*" Project="Release - Final" />
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="FrostySdk/FrostySdk.csproj">
+    <BuildType Solution="Release|*" Project="Release - Final" />
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="Shaders/FrostyShaders.vcxproj" Id="cb97b27b-6604-43ce-97aa-8b349617928e">
+    <BuildType Solution="Developer - Debug|*" Project="Debug" />
+    <BuildType Solution="Release - Alpha|*" Project="Release" />
+    <BuildType Solution="Release - Beta|*" Project="Release" />
+    <BuildType Solution="Release - Final|*" Project="Release" />
+  </Project>
+</Solution>

@@ -100,7 +100,15 @@ namespace AssetBankPlugin
                         anim.Name = dataName.Key;
                         anim.Channels = anim.GetChannels(anim.ChannelToDofAsset);
                         var intern = anim.ConvertToInternal();
-                        new AnimationExporterSEANIM().Export(intern, skeleton, Path.GetDirectoryName(path));
+
+                        if (filterType == "cast")
+                        {
+                            new AnimationExporterCAST().Export(intern, skeleton, Path.GetDirectoryName(path));
+                        }
+                        else
+                        {
+                            new AnimationExporterSEANIM().Export(intern, skeleton, Path.GetDirectoryName(path));
+                        }
                     }
                 }
             }

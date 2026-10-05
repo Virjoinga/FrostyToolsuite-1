@@ -1,12 +1,12 @@
 ﻿using Frosty.Core.Viewport;
-using SharpDX;
-using SharpDX.Direct3D11;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
+using Vortice.Mathematics;
 
 namespace MeshSetPlugin.Resources
 {
@@ -14,7 +14,7 @@ namespace MeshSetPlugin.Resources
     {
         static readonly float INV_SQRT_2 = 1f / (float)Math.Sqrt(2f);
         static readonly Vector3 PackRangeMin = new Vector3(-INV_SQRT_2, -INV_SQRT_2, 0f);
-        static readonly Vector3 PackRangeMax = new Vector3(INV_SQRT_2, INV_SQRT_2, MathUtil.PiOverTwo);
+        static readonly Vector3 PackRangeMax = new Vector3(INV_SQRT_2, INV_SQRT_2, MathF.PI / 2.0f);
 
         static int FindGreatestComponent(Vector3 vec)
         {
@@ -47,7 +47,7 @@ namespace MeshSetPlugin.Resources
             // project tangent onto normal plane
             Vector3 tangentProjected = Vector3.Normalize(tangent - normal * Vector3.Dot(tangent, normal));
             float dot = Vector3.Dot(tangentProjected, refTangent);
-            float angle = (float)Math.Acos(Math.Abs(MathUtil.Clamp(dot, -1f, 1f)));
+            float angle = (float)Math.Acos(Math.Abs(Math.Clamp(dot, -1f, 1f)));
 
             // store binormal sign in bit 3
             Vector3 computedBinormal = Vector3.Cross(tangentProjected, normal);
@@ -101,14 +101,13 @@ namespace MeshSetPlugin.Resources
             Vector3 b = Vector3.Normalize(binormal);
             Vector3 n = Vector3.Normalize(normal);
             Vector3 computedTangent = Vector3.Normalize(t - Vector3.Dot(t, n) * n);
-            Matrix mat = new Matrix
-            {
-                Row1 = (Vector4)n,
-                Row2 = (Vector4)computedTangent,
-                Row3 = (Vector4)Vector3.Cross(n, computedTangent)
-            };
+            Matrix4x4 mat = Matrix4x4.Identity;
+            mat[0] = new Vector4(n, 0.0f);
+            mat[1] = new Vector4(computedTangent, 0.0f);
+            mat[2] = new Vector4(Vector3.Cross(n, computedTangent), 0.0f);
 
-            Quaternion quat = Quaternion.RotationMatrix(mat); quat.Normalize();
+            Quaternion quat = Quaternion.CreateFromRotationMatrix(mat);
+            quat = Quaternion.Normalize(quat);
 
             uint maxComponent = FindGreatestComponent(quat);
             //Debug.Assert(maxComponent > 0, "maxComponent can't be zero (X)");
@@ -116,7 +115,7 @@ namespace MeshSetPlugin.Resources
                 quat = -quat;
 
             Vector4 packedQuat = Vector4.Zero;
-            uint reflection = Vector3.Dot(binormal, (Vector3)mat.Row3) < 0f ? 0u : 1u;
+            uint reflection = Vector3.Dot(binormal, new Vector3(mat.Z.X, mat.Z.Y, mat.Z.Z)) < 0f ? 0u : 1u;
 
             switch (maxComponent)
             {
@@ -155,9 +154,9 @@ namespace MeshSetPlugin.Resources
             packedQuat.Y *= 1.4142135f;
 
             uint ts = 0;
-            ts |= (uint)Math.Floor(MathUtil.Clamp(packedQuat.X * 0.5f + 0.5f, 0f, 1f) * 1023f + 0.5f) << 22; // packed as 10 bit int
-            ts |= (uint)Math.Floor(MathUtil.Clamp(packedQuat.Y * 0.5f + 0.5f, 0f, 1f) * 511f + 0.5f) << 13;  // packed as 9 bit int
-            ts |= (uint)Math.Floor(MathUtil.Clamp(packedQuat.Z * 0.5f + 0.5f, 0f, 1f) * 1023f + 0.5f) << 3;  // packed as 10 bit int
+            ts |= (uint)Math.Floor(Math.Clamp(packedQuat.X * 0.5f + 0.5f, 0f, 1f) * 1023f + 0.5f) << 22; // packed as 10 bit int
+            ts |= (uint)Math.Floor(Math.Clamp(packedQuat.Y * 0.5f + 0.5f, 0f, 1f) * 511f + 0.5f) << 13;  // packed as 9 bit int
+            ts |= (uint)Math.Floor(Math.Clamp(packedQuat.Z * 0.5f + 0.5f, 0f, 1f) * 1023f + 0.5f) << 3;  // packed as 10 bit int
             ts |= ((maxComponent - 1) & 3) << 1;
             ts |= reflection;
             return ts;

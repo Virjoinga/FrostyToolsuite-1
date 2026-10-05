@@ -47,7 +47,11 @@ namespace AssetBankPlugin.Import
             public uint TypeHash { get; set; }
         }
 
-        private class StringPayload { public string Value { get; } public StringPayload(string v) { Value = v; } }
+        private class StringPayload
+        {
+            public string Value { get; }
+            public StringPayload(string v) { Value = v; }
+        }
 
         private class PrimitiveArrayPayload
         {
@@ -62,11 +66,33 @@ namespace AssetBankPlugin.Import
             }
         }
 
-        private class ObjectArrayPayload
+        private class InlineStructArrayPayload
         {
             public System.Collections.IEnumerable List { get; }
             public uint ElementTypeHash { get; }
-            public ObjectArrayPayload(System.Collections.IEnumerable list, uint typeHash) { List = list; ElementTypeHash = typeHash; }
+            public uint ElementSize { get; }
+            public uint ElementAlignment { get; }
+
+            public InlineStructArrayPayload(System.Collections.IEnumerable list, uint typeHash, uint size, uint align)
+            {
+                List = list; ElementTypeHash = typeHash; ElementSize = size; ElementAlignment = align;
+            }
+        }
+
+        private class StringArrayPayload
+        {
+            public List<string> Strings { get; }
+            public StringArrayPayload(List<string> strings) { Strings = strings; }
+        }
+
+        private class ReferenceObjectArrayPayload
+        {
+            public System.Collections.IEnumerable List { get; }
+            public uint ElementTypeHash { get; }
+            public ReferenceObjectArrayPayload(System.Collections.IEnumerable list, uint typeHash)
+            {
+                List = list; ElementTypeHash = typeHash;
+            }
         }
 
         public static byte[] Serialize(AntAsset asset, Dictionary<uint, GenericClass2> classes, bool bigEndian)
@@ -140,7 +166,9 @@ namespace AssetBankPlugin.Import
                         ctx.Stream.WriteByte(0);
                     }
                     else if (target is PrimitiveArrayPayload pap) SerializePrimitiveArray(pap, ctx);
-                    else if (target is ObjectArrayPayload oap) SerializeObjectArray(oap, ctx);
+                    else if (target is InlineStructArrayPayload isap) SerializeInlineStructArray(isap, ctx);
+                    else if (target is StringArrayPayload sap) SerializeStringArray(sap, ctx);
+                    else if (target is ReferenceObjectArrayPayload roap) SerializeReferenceObjectArray(roap, ctx);
                 }
             }
 
@@ -170,24 +198,38 @@ namespace AssetBankPlugin.Import
                         object payload;
                         if (field.ElementTypeHash == 0x11 || field.Type == "String[]")
                         {
-                            var stringList = new List<StringPayload>();
-                            foreach (var s in (System.Collections.IEnumerable)val) stringList.Add(new StringPayload(s?.ToString() ?? ""));
-                            payload = new ObjectArrayPayload(stringList, field.ElementTypeHash);
+                            var stringList = new List<string>();
+                            foreach (var s in (System.Collections.IEnumerable)val) stringList.Add(s?.ToString() ?? "");
+                            payload = new StringArrayPayload(stringList);
                         }
                         else if (PrimitiveTypeMap.IsPrimitive(field.ElementTypeHash) && field.ElementTypeHash != 0x12)
                         {
                             payload = new PrimitiveArrayPayload((System.Collections.IEnumerable)val, field.ElementTypeHash, field.ElementSize, field.ElementAlignment);
                         }
+                        else if (IsReferenceType(field, ctx.Classes))
+                        {
+                            payload = new ReferenceObjectArrayPayload((System.Collections.IEnumerable)val, field.ElementTypeHash);
+                        }
                         else
                         {
-                            payload = new ObjectArrayPayload((System.Collections.IEnumerable)val, field.ElementTypeHash);
+                            uint elemSize = field.ElementSize;
+                            uint elemAlign = field.ElementAlignment;
+                            if (ctx.Classes.TryGetValue(field.ElementTypeHash, out var elemClass))
+                            {
+                                if (elemSize == 0) elemSize = (uint)elemClass.Size;
+                                if (elemAlign == 0) elemAlign = (uint)elemClass.Alignment;
+                            }
+                            if (elemSize == 0) elemSize = 8;
+                            if (elemAlign == 0) elemAlign = 4;
+
+                            payload = new InlineStructArrayPayload((System.Collections.IEnumerable)val, field.ElementTypeHash, elemSize, elemAlign);
                         }
 
                         ctx.PendingPointers.Add(new PendingPointer
                         {
                             SourceOffset = startOffset + fieldOff + 8,
                             Target = payload,
-                            Alignment = (int)field.ElementAlignment,
+                            Alignment = (int)(field.ElementAlignment > 0 ? field.ElementAlignment : 8),
                             IsLayoutData = false
                         });
                     }
@@ -230,6 +272,21 @@ namespace AssetBankPlugin.Import
             ctx.Stream.Write(fieldData, 0, fieldData.Length);
         }
 
+        private static bool IsReferenceType(GenericField2 field, Dictionary<uint, GenericClass2> classes)
+        {
+            if (field.ElementTypeHash == 0x12) return true;
+            if (field.ElementSize == 8 && field.ElementAlignment == 8 && !field.IsNative)
+            {
+                if (classes.TryGetValue(field.ElementTypeHash, out var cls))
+                {
+                    if (cls.Elements.Count > 1 || (cls.Elements.Count == 1 && PrimitiveTypeMap.IsPrimitive(cls.Elements[0].TypeHash)))
+                        return false;
+                }
+                return true;
+            }
+            return false;
+        }
+
         private static void SerializePrimitiveOrStruct(byte[] fieldData, int fieldOff, object val, GenericField2 field, int absoluteOffset, SerializationContext ctx)
         {
             if (PrimitiveTypeMap.IsPrimitive(field.TypeHash) && field.TypeHash != 0x12)
@@ -262,7 +319,10 @@ namespace AssetBankPlugin.Import
                 }
                 else WriteU64(fieldData, fieldOff, 0, ctx.BigEndian);
             }
-            else if (val != null) SerializeObject(val, field.TypeHash, absoluteOffset, ctx);
+            else if (val != null)
+            {
+                SerializeObject(val, field.TypeHash, absoluteOffset, ctx);
+            }
         }
 
         private static void SerializeInlineArray(byte[] fieldData, int fieldOff, object val, GenericField2 field, int absoluteOffset, SerializationContext ctx)
@@ -290,7 +350,7 @@ namespace AssetBankPlugin.Import
                     {
                         WritePrimitiveValue(fieldData, elemOff, elements[i], field.ElementTypeHash, ctx.BigEndian);
                     }
-                    else if (field.ElementTypeHash == 0x12 || (field.ElementSize == 8 && field.ElementAlignment == 8))
+                    else if (field.ElementTypeHash == 0x12 || (field.ElementSize == 8 && field.ElementAlignment == 8 && !field.IsNative))
                     {
                         if (elements[i] != null)
                         {
@@ -331,10 +391,64 @@ namespace AssetBankPlugin.Import
             ctx.Stream.Write(buffer, 0, buffer.Length);
         }
 
-        private static void SerializeObjectArray(ObjectArrayPayload oap, SerializationContext ctx)
+        private static void SerializeInlineStructArray(InlineStructArrayPayload isap, SerializationContext ctx)
         {
             var elements = new List<object>();
-            foreach (var item in oap.List) elements.Add(item);
+            foreach (var item in isap.List) elements.Add(item);
+
+            uint stride = isap.ElementSize;
+            int align = (int)isap.ElementAlignment;
+            if (align == 0) align = 4;
+            stride = (uint)((stride + align - 1) & ~(align - 1));
+
+            int startOffset = (int)ctx.Stream.Position;
+            int totalBytes = elements.Count * (int)stride;
+
+            byte[] padding = new byte[totalBytes];
+            ctx.Stream.Write(padding, 0, totalBytes);
+
+            for (int i = 0; i < elements.Count; i++)
+            {
+                object elem = elements[i];
+                if (elem != null)
+                {
+                    int elemOffset = startOffset + (i * (int)stride);
+                    SerializeObject(elem, isap.ElementTypeHash, elemOffset, ctx);
+                }
+            }
+        }
+
+        private static void SerializeStringArray(StringArrayPayload sap, SerializationContext ctx)
+        {
+            var stringList = sap.Strings;
+            long startPos = ctx.Stream.Position;
+
+            for (int i = 0; i < stringList.Count; i++)
+            {
+                string s = stringList[i];
+                int count = s.Length + 1;
+                int elemOff = (int)(startPos + (i * 16));
+
+                byte[] container = new byte[16];
+                WriteU32(container, 0, (uint)count, ctx.BigEndian);
+                WriteU32(container, 4, (uint)count, ctx.BigEndian);
+
+                ctx.PendingPointers.Add(new PendingPointer
+                {
+                    SourceOffset = elemOff + 8,
+                    Target = new StringPayload(s),
+                    Alignment = 1,
+                    IsLayoutData = false
+                });
+
+                ctx.Stream.Write(container, 0, 16);
+            }
+        }
+
+        private static void SerializeReferenceObjectArray(ReferenceObjectArrayPayload roap, SerializationContext ctx)
+        {
+            var elements = new List<object>();
+            foreach (var item in roap.List) elements.Add(item);
 
             long startPos = ctx.Stream.Position;
             for (int i = 0; i < elements.Count; i++)
@@ -349,7 +463,7 @@ namespace AssetBankPlugin.Import
                         Target = elem,
                         Alignment = 16,
                         IsLayoutData = true,
-                        TypeHash = oap.ElementTypeHash
+                        TypeHash = roap.ElementTypeHash
                     });
                 }
                 WriteU64ToStream(ctx.Stream, 0, ctx.BigEndian);
@@ -489,7 +603,7 @@ namespace AssetBankPlugin.Import
                 case 0x08: WriteU64(b, o, (ulong)Convert.ToInt64(val), bigEndian); break;
                 case 0x09: WriteU64(b, o, Convert.ToUInt64(val), bigEndian); break;
                 case 0x0A: WriteU32(b, o, BitConverter.ToUInt32(BitConverter.GetBytes(Convert.ToSingle(val)), 0), bigEndian); break;
-                case 0x13: WriteU64(b, o, BitConverter.ToUInt64(BitConverter.GetBytes(Convert.ToDouble(val)), 0), bigEndian); break;
+                case 0x13: WriteU64(b, o, BitConverter.ToUInt32(BitConverter.GetBytes(Convert.ToDouble(val)), 0), bigEndian); break;
                 case 0x23:
                     ulong keyVal = 0;
                     if (val is Guid g) keyVal = GuidToKey(g);

@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Windows.Interop;
-using D3D11 = SharpDX.Direct3D11;
+using D3D11 = Vortice.Direct3D11;
 using System.Windows.Media;
-using SharpDX;
 using System.Runtime.InteropServices;
+using Vortice.Direct3D11;
 
 namespace Frosty.Core.Controls
 {
@@ -11,7 +11,7 @@ namespace Frosty.Core.Controls
     {
         [DllImport("user32.dll", EntryPoint = "GetDesktopWindow", SetLastError = false)]
         static extern IntPtr GetDesktopWindow();
-        [DllImport("kernel32.dll", SetLastError = true)]
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
         static extern IntPtr CreateFileMapping(IntPtr hFile, IntPtr lpFileMappingAttributes, uint flProtect, uint dwMaximumSizeHigh, uint dwMaximumSizeLow, string lpName);
         [DllImport("kernel32.dll", SetLastError = true)]
         static extern IntPtr MapViewOfFile(IntPtr hFileMappingObject, uint dwDesiredAccess, uint dwFileOffsetHight, uint dwFileOffsetLow, uint dwNumberOfBytesToMap);
@@ -31,12 +31,12 @@ namespace Frosty.Core.Controls
         private IntPtr fileMapping;
         private IntPtr mapView;
         private InteropBitmap bmp;
-        private D3D11.Texture2D backBuffer;
-        private D3D11.Texture2D staging;
+        private D3D11.ID3D11Texture2D backBuffer;
+        private D3D11.ID3D11Texture2D staging;
 
         public FrostyRenderImage()
         {
-            lock(d3dLock)
+            lock (d3dLock)
             {
                 refCount++;
             }
@@ -47,7 +47,7 @@ namespace Frosty.Core.Controls
             Dispose(false);
         }
 
-        public void SetBackBuffer(D3D11.Texture2D texture)
+        public void SetBackBuffer(D3D11.ID3D11Texture2D texture)
         {
             if (disposed)
                 return;
@@ -74,14 +74,14 @@ namespace Frosty.Core.Controls
             fileMapping = CreateFileMapping(new IntPtr(-1), IntPtr.Zero, 0x04, 0, pixelCount, null);
             mapView = MapViewOfFile(fileMapping, 0xF001F, 0, 0, pixelCount);
 
-            bmp = (InteropBitmap)Imaging.CreateBitmapSourceFromMemorySection(fileMapping, texDesc.Width, texDesc.Height, PixelFormats.Pbgra32, texDesc.Width * (format.BitsPerPixel / 8), 0);
+            bmp = (InteropBitmap)Imaging.CreateBitmapSourceFromMemorySection(fileMapping, (int)(texDesc.Width), (int)(texDesc.Height), PixelFormats.Pbgra32, (int)(texDesc.Width) * (format.BitsPerPixel / 8), 0);
             backBuffer = texture;
 
-            texDesc.CpuAccessFlags = D3D11.CpuAccessFlags.Read;
+            texDesc.CPUAccessFlags = D3D11.CpuAccessFlags.Read;
             texDesc.Usage = D3D11.ResourceUsage.Staging;
             texDesc.BindFlags = D3D11.BindFlags.None;
 
-            staging = new D3D11.Texture2D(backBuffer.Device, texDesc);
+            staging = backBuffer.Device.CreateTexture2D(texDesc);
         }
 
         public void Invalidate()
@@ -89,18 +89,18 @@ namespace Frosty.Core.Controls
             if (disposed)
                 return;
 
-            D3D11.Device device = backBuffer.Device;
-            device.ImmediateContext.CopyResource(backBuffer, staging);
+            D3D11.ID3D11Device device = backBuffer.Device;
+            device.ImmediateContext.CopyResource(staging, backBuffer);
 
-            DataBox db = device.ImmediateContext.MapSubresource(staging, 0, D3D11.MapMode.Read, D3D11.MapFlags.None);
+            MappedSubresource db = device.ImmediateContext.Map(staging, 0, D3D11.MapMode.Read, D3D11.MapFlags.None);
             {
-                int rowWidth = backBuffer.Description.Width * (PixelFormats.Pbgra32.BitsPerPixel / 8);
+                int rowWidth = (int)(backBuffer.Description.Width) * (PixelFormats.Pbgra32.BitsPerPixel / 8);
                 for (int i = 0; i < backBuffer.Description.Height; i++)
                 {
-                    CopyMemory(mapView + (i * rowWidth), db.DataPointer + (i * db.RowPitch), (uint)rowWidth);
+                    CopyMemory(mapView + (i * rowWidth), db.DataPointer + (nint)(i * db.RowPitch), (uint)rowWidth);
                 }
             }
-            device.ImmediateContext.UnmapSubresource(staging, 0);
+            device.ImmediateContext.Unmap(staging, 0);
             bmp.Invalidate();
         }
 

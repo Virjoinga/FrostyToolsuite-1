@@ -1,5 +1,3 @@
-using SharpDX.Direct2D1;
-
 namespace Frosty.Core
 {
     /// <summary>

@@ -694,10 +694,6 @@ namespace Frosty.Core.Controls
 
             AssetPath parent = new AssetPath("", "", null);
             AssetPath root = new AssetPath("![root]", "", null, true);
-            parent.Children.Add(root);
-			
-            m_assetPathMapping.Add("__root__", parent);
-            m_assetPathMapping.Add("/", root);
 
             foreach (AssetEntry entry in ItemsSource)
             {
@@ -733,8 +729,13 @@ namespace Frosty.Core.Controls
                 next.Entries.Add(entry);
             }
 
+            m_assetPathMapping.Add("__root__", parent);
+            m_assetPathMapping.Add("/", root);
+
+            parent.Children.Sort((AssetPath x, AssetPath y) => x.PathName.CompareTo(y.PathName, StringComparison.InvariantCultureIgnoreCase));
+            parent.Children.Insert(0, m_assetPathMapping["/"]);
+
             m_assetTreeView.ItemsSource = parent.Children;
-            m_assetTreeView.Items.SortDescriptions.Add(new SortDescription("PathName", ListSortDirection.Ascending));
         }
 
         private bool ShouldDisplayAsset(AssetEntry entry)

@@ -1,11 +1,11 @@
-﻿using System;
+﻿using AssetBankPlugin.Enums;
+using AssetBankPlugin.Export;
+using Frosty.Core;
+using FrostySdk;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using AssetBankPlugin.Enums;
-using AssetBankPlugin.Export;
-using FrostySdk;
-using Frosty.Core;
 
 namespace AssetBankPlugin.Ant
 {
@@ -63,8 +63,7 @@ namespace AssetBankPlugin.Ant
             ParseBasicData(data);
 
             if (data.TryGetValue("CodecType", out object codec)) CodecType = Convert.ToUInt32(codec);
-            if (data.TryGetValue("AnimId", out object animid)) AnimId = Convert.ToUInt32(animid);
-            if (data.TryGetValue("TrimOffset", out object trim)) TrimOffset = Convert.ToSingle(trim);
+            if (data.TryGetValue("AnimId", out object animid)) unchecked { AnimId = (uint)Convert.ToInt64(animid); }
             if (data.TryGetValue("EndFrame", out object endf)) EndFrame = Convert.ToUInt16(endf);
             if (data.TryGetValue("Additive", out object additive)) Additive = Convert.ToBoolean(additive);
 
@@ -250,12 +249,15 @@ namespace AssetBankPlugin.Ant
 
                     HashSet<Guid> rigDofSetGuids = null;
 
-                    // BfN style – RigDofSets is already the full compiled list
+                    // Rig directly contains the compiled DofSet list
+
                     if (rig.RigDofSets != null)
                     {
                         rigDofSetGuids = new HashSet<Guid>(rig.RigDofSets);
                     }
-                    // GW2 style – flatten DofSetLists manually
+
+                    // Flatten referenced DofSetList assets
+
                     else if (rig.DofSetLists != null)
                     {
                         rigDofSetGuids = new HashSet<Guid>();
@@ -325,17 +327,35 @@ namespace AssetBankPlugin.Ant
             else if (currentProfile == ProfileVersion.PlantsVsZombiesGardenWarfare2)
             {
                 if (dof.rigId == Guid.Empty)
-                { OrderedChannels = ordered; return new Dictionary<string, BoneChannelType>(); }
+                {
+                    OrderedChannels = ordered;
+                    return new Dictionary<string, BoneChannelType>();
+                }
                 RigAsset rig = AntRefTable.Get(dof.rigId) as RigAsset;
-                if (rig == null)
-                { OrderedChannels = ordered; return new Dictionary<string, BoneChannelType>(); }
+                if (rig == null || rig.DofIds == null)
+                {
+                    OrderedChannels = ordered;
+                    return new Dictionary<string, BoneChannelType>();
+                }
 
-                var slots = GetRigDofOrder(rig);   // GW2 uses recursive fallback inside
-                for (int i = 0; dataLength > 0 && i < slots.Count; i++)
+                var dofIdToIndex = new Dictionary<uint, int>(rig.DofIds.Length);
+                for (int idx = 0; idx < rig.DofIds.Length; idx++)
+                {
+                    dofIdToIndex[rig.DofIds[idx]] = idx;
+                }
+
+                for (int i = 0; i < dataLength; i++)
                 {
                     uint dofId = data[i];
-                    var slot = slots[i];
-                    ordered.Add(new ChannelInfo { Name = slot.Name, Type = slot.Type, DofId = dofId });
+                    if (dofIdToIndex.TryGetValue(dofId, out int idx) && idx >= 0 && idx < channelNamesLength)
+                    {
+                        var kv = channelNamesList[idx];
+                        ordered.Add(new ChannelInfo { Name = kv.Key, Type = kv.Value, DofId = dofId });
+                    }
+                    else
+                    {
+                        ordered.Add(new ChannelInfo { Name = $"Unknown_{dofId}", Type = BoneChannelType.None, DofId = dofId });
+                    }
                 }
             }
             else if (currentProfile == ProfileVersion.PlantsVsZombiesGardenWarfare || StorageType == StorageType.Overwrite)
@@ -559,8 +579,6 @@ namespace AssetBankPlugin.Ant
             {
                 case "FrameAnimationAsset":
                     return ConvertFrameAnimation();
-                case "RawAnimationAsset":
-                    return ConvertRawAnimation();
                 case "CurveAnimationAsset":
                     return ConvertCurveAnimation();
                 default:
@@ -573,121 +591,40 @@ namespace AssetBankPlugin.Ant
             float[] d = GetPropertyArray<float>("Data");
             if (d == null || d.Length == 0) return null;
 
-            int vec3Count = GetProperty<int>("Vec3Count");
-            int quatCount = GetProperty<int>("QuatCount");
+            List<ChannelInfo> ordered = OrderedChannels;
+            if (ordered == null || ordered.Count == 0) return null;
 
-            List<Vector3> positions = new List<Vector3>(vec3Count);
-            List<Quaternion> rotations = new List<Quaternion>(quatCount);
-            List<Vector3> scales = new List<Vector3>(vec3Count);
+            var positions = new List<Vector3>();
+            var rotations = new List<Quaternion>();
+            var scales = new List<Vector3>();
+            var posChannels = new List<string>();
+            var rotChannels = new List<string>();
+            var scaleChannels = new List<string>();
+            int i = 0;
 
-            List<string> posChannels = new List<string>(vec3Count);
-            List<string> rotChannels = new List<string>(quatCount);
-            List<string> scaleChannels = new List<string>(vec3Count);
-
-            int dataIndex = 0;
-
-            foreach (var channel in Channels)
+            foreach (var ch in ordered)
             {
-                if (dataIndex + 3 >= d.Length) break;
-
-                string key = channel.Key;
-
-                switch (channel.Value)
+                if (i >= d.Length) break;
+                switch (ch.Type)
                 {
                     case BoneChannelType.Rotation:
-                        rotChannels.Add(key.Replace(".q", ""));
-                        rotations.Add(new Quaternion(d[dataIndex], d[dataIndex + 1], d[dataIndex + 2], d[dataIndex + 3]));
-                        dataIndex += 4;
-                        break;
-
+                        if (i + 3 < d.Length) { rotChannels.Add(ch.Name.Replace(".q", "")); rotations.Add(new Quaternion(d[i], d[i + 1], d[i + 2], d[i + 3])); }
+                        i += 4; break;
                     case BoneChannelType.Position:
-                        posChannels.Add(key.Replace(".t", ""));
-                        positions.Add(new Vector3(d[dataIndex], d[dataIndex + 1], d[dataIndex + 2]));
-                        dataIndex += 4;
-                        break;
-
+                        if (i + 2 < d.Length) { posChannels.Add(ch.Name.Replace(".t", "")); positions.Add(new Vector3(d[i], d[i + 1], d[i + 2])); }
+                        i += 4; break;
                     case BoneChannelType.Scale:
-                        scaleChannels.Add(key.Replace(".s", ""));
-                        scales.Add(new Vector3(d[dataIndex], d[dataIndex + 1], d[dataIndex + 2]));
-                        dataIndex += 4;
-                        break;
-
-                    default:
-                        dataIndex += 4;
-                        break;
+                        if (i + 2 < d.Length) { scaleChannels.Add(ch.Name.Replace(".s", "")); scales.Add(new Vector3(d[i], d[i + 1], d[i + 2])); }
+                        i += 4; break;
+                    default: i++; break;
                 }
             }
 
-            InternalAnimation ret = new InternalAnimation { Name = Name };
-
-            var frame = new Frame
-            {
-                FrameIndex = 0,
-                Positions = positions,
-                Rotations = rotations,
-                Scales = scales
-            };
-
-            ret.Frames.Add(frame);
+            var ret = new InternalAnimation { Name = Name };
+            ret.Frames.Add(new Frame { FrameIndex = 0, Positions = positions, Rotations = rotations, Scales = scales });
             ret.PositionChannels = posChannels;
             ret.RotationChannels = rotChannels;
             ret.ScaleChannels = scaleChannels;
-            ret.Additive = Additive;
-
-            return ret;
-        }
-
-        private InternalAnimation ConvertRawAnimation()
-        {
-            InternalAnimation ret = new InternalAnimation();
-
-            List<string> posChannels = new List<string>();
-            List<string> rotChannels = new List<string>();
-
-            foreach (var channel in Channels)
-            {
-                if (channel.Value == BoneChannelType.Rotation)
-                    rotChannels.Add(channel.Key.Replace(".q", ""));
-                else if (channel.Value == BoneChannelType.Position)
-                    posChannels.Add(channel.Key.Replace(".t", ""));
-            }
-
-            int dataIndex = 0;
-            ushort[] keyTimes = GetPropertyArray<ushort>("KeyTimes");
-            float[] data = GetPropertyArray<float>("Data");
-            int quatCount = GetProperty<int>("QuatCount");
-            int vec3Count = GetProperty<int>("Vec3Count");
-
-            for (int frameIndex = 0; frameIndex < keyTimes.Length; frameIndex++)
-            {
-                List<Vector3> positions = new List<Vector3>();
-                List<Quaternion> rotations = new List<Quaternion>();
-
-                for (int i = 0; i < quatCount; i++)
-                {
-                    if (dataIndex + 3 >= data.Length) break;
-                    rotations.Add(new Quaternion(data[dataIndex], data[dataIndex + 1], data[dataIndex + 2], data[dataIndex + 3]));
-                    dataIndex += 4;
-                }
-                for (int i = 0; i < vec3Count; i++)
-                {
-                    if (dataIndex + 2 >= data.Length) break;
-                    positions.Add(new Vector3(data[dataIndex], data[dataIndex + 1], data[dataIndex + 2]));
-                    dataIndex += 3;
-                }
-
-                var frame = new Frame
-                {
-                    FrameIndex = keyTimes[frameIndex],
-                    Positions = positions,
-                    Rotations = rotations
-                };
-                ret.Frames.Add(frame);
-            }
-
-            ret.Name = Name;
-            ret.PositionChannels = posChannels;
-            ret.RotationChannels = rotChannels;
             ret.Additive = Additive;
 
             return ret;

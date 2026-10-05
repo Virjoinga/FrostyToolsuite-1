@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Runtime.InteropServices;
+using Vortice.Mathematics;
 
 namespace MeshSetPlugin.Fbx
 {
@@ -732,9 +734,9 @@ namespace MeshSetPlugin.Fbx
         private IntPtr lclScaling;
         private IntPtr visibility;
 
-        public SharpDX.Vector3 LclTranslation { get => FbxProperty.GetDouble3(lclTranslation); set => FbxProperty.Set(lclTranslation, value); }
-        public SharpDX.Vector3 LclRotation { get => FbxProperty.GetDouble3(lclRotation); set => FbxProperty.Set(lclRotation, value); }
-        public SharpDX.Vector3 LclScaling { get => FbxProperty.GetDouble3(lclScaling); set => FbxProperty.Set(lclScaling, value); }
+        public Vector3 LclTranslation { get => FbxProperty.GetDouble3(lclTranslation); set => FbxProperty.Set(lclTranslation, value); }
+        public Vector3 LclRotation { get => FbxProperty.GetDouble3(lclRotation); set => FbxProperty.Set(lclRotation, value); }
+        public Vector3 LclScaling { get => FbxProperty.GetDouble3(lclScaling); set => FbxProperty.Set(lclScaling, value); }
         public double Visibility { get => FbxProperty.GetDouble(visibility); set => FbxProperty.Set(visibility, value); }
         public int ChildCount => GetChildCountInternal(pHandle, false);
         public int NodeAttributeCount => GetNodeAttributeCountInternal(pHandle);
@@ -1203,12 +1205,12 @@ namespace MeshSetPlugin.Fbx
         public EType AttributeType => GetAttributeTypeInternal(pHandle);
         public int NodeCount => GetNodeCountInternal(pHandle);
 
-        public SharpDX.Color4 Color
+        public Color4 Color
         {
             get
             {
-                SharpDX.Vector3 v = FbxProperty.GetDouble3(color);
-                return new SharpDX.Color4(v.X, v.Y, v.Z, 1.0f);
+                Vector3 v = FbxProperty.GetDouble3(color);
+                return new Color4(v.X, v.Y, v.Z, 1.0f);
             }
         }
 
@@ -2025,9 +2027,9 @@ namespace MeshSetPlugin.Fbx
             return idx;
         }
 
-        public void GetAt(int index, out SharpDX.Vector4 outValue)
+        public void GetAt(int index, out Vector4 outValue)
         {
-            outValue = new SharpDX.Vector4();
+            outValue = new Vector4();
             IntPtr ptr = GetAt(index, EFbxType.eFbxDouble4);
 
             outValue.X = (float)BitConverter.Int64BitsToDouble(Marshal.ReadInt64(ptr, 0));
@@ -2037,9 +2039,9 @@ namespace MeshSetPlugin.Fbx
             FbxUtils.FbxFree(ptr);
         }
 
-        public void GetAt(int index, out SharpDX.Vector3 outValue)
+        public void GetAt(int index, out Vector3 outValue)
         {
-            outValue = new SharpDX.Vector3();
+            outValue = new Vector3();
             IntPtr ptr = GetAt(index, EFbxType.eFbxDouble3);
 
             outValue.X = (float)BitConverter.Int64BitsToDouble(Marshal.ReadInt64(ptr, 0));
@@ -2048,9 +2050,9 @@ namespace MeshSetPlugin.Fbx
             FbxUtils.FbxFree(ptr);
         }
 
-        public void GetAt(int index, out SharpDX.Vector2 outValue)
+        public void GetAt(int index, out Vector2 outValue)
         {
-            outValue = new SharpDX.Vector2();
+            outValue = new Vector2();
             IntPtr ptr = GetAt(index, EFbxType.eFbxDouble2);
 
             outValue.X = (float)BitConverter.Int64BitsToDouble(Marshal.ReadInt64(ptr, 0));
@@ -2058,15 +2060,15 @@ namespace MeshSetPlugin.Fbx
             FbxUtils.FbxFree(ptr);
         }
 
-        public void GetAt(int index, out SharpDX.ColorBGRA outValue)
+        public void GetAt(int index, out ColorBgra outValue)
         {
-            outValue = new SharpDX.ColorBGRA();
             IntPtr ptr = GetAt(index, EFbxType.eFbxDouble4);
 
-            outValue.R = (byte)(BitConverter.Int64BitsToDouble(Marshal.ReadInt64(ptr, 0)) * 255.0);
-            outValue.G = (byte)(BitConverter.Int64BitsToDouble(Marshal.ReadInt64(ptr, 8)) * 255.0);
-            outValue.B = (byte)(BitConverter.Int64BitsToDouble(Marshal.ReadInt64(ptr, 16)) * 255.0);
-            outValue.A = (byte)(BitConverter.Int64BitsToDouble(Marshal.ReadInt64(ptr, 24)) * 255.0);
+            outValue = new ColorBgra(
+            (byte)(BitConverter.Int64BitsToDouble(Marshal.ReadInt64(ptr, 0)) * 255.0),
+            (byte)(BitConverter.Int64BitsToDouble(Marshal.ReadInt64(ptr, 8)) * 255.0),
+            (byte)(BitConverter.Int64BitsToDouble(Marshal.ReadInt64(ptr, 16)) * 255.0),
+            (byte)(BitConverter.Int64BitsToDouble(Marshal.ReadInt64(ptr, 24)) * 255.0));
             FbxUtils.FbxFree(ptr);
         }
 
@@ -2130,7 +2132,7 @@ namespace MeshSetPlugin.Fbx
         [DllImport("thirdparty/libfbxsdk", EntryPoint = "??0?$FbxVectorTemplate3@N@fbxsdk@@QEAA@NNN@Z")]
         private static extern void ConstructInternal(IntPtr handle, double pValue1, double pValue2, double pValue3);
 
-        public static IntPtr Construct(SharpDX.Vector3 value)
+        public static IntPtr Construct(Vector3 value)
         {
             IntPtr ptr = FbxUtils.FbxMalloc(8 * 3);
             ConstructInternal(ptr, value.X, value.Y, value.Z);
@@ -2138,13 +2140,13 @@ namespace MeshSetPlugin.Fbx
             return ptr;
         }
 
-        public static unsafe SharpDX.Vector3 Get(IntPtr inHandle)
+        public static unsafe Vector3 Get(IntPtr inHandle)
         {
             float x = (float)*((double*)(inHandle.ToInt64()));
             float y = (float)*((double*)(inHandle.ToInt64() + 8));
             float z = (float)*((double*)(inHandle.ToInt64() + 16));
 
-            return new SharpDX.Vector3(x, y, z);
+            return new Vector3(x, y, z);
         }
     }
 
@@ -2165,7 +2167,7 @@ namespace MeshSetPlugin.Fbx
             FbxUtils.FbxFree(ptr);
         }
 
-        public static void Set(IntPtr inHandle, SharpDX.Vector3 value)
+        public static void Set(IntPtr inHandle, Vector3 value)
         {
             EFbxType type = EFbxType.eFbxDouble3;
             IntPtr ptr = FbxDouble3.Construct(value);
@@ -2194,7 +2196,7 @@ namespace MeshSetPlugin.Fbx
             return FbxUtils.IntPtrToString(ptr);
         }
 
-        public static unsafe SharpDX.Vector3 GetDouble3(IntPtr inHandle)
+        public static unsafe Vector3 GetDouble3(IntPtr inHandle)
         {
             EFbxType type = EFbxType.eFbxDouble3;
             IntPtr ptr = IntPtr.Zero;
@@ -2256,9 +2258,9 @@ namespace MeshSetPlugin.Fbx
             bNeedsFreeing = true;
         }
 
-        public SharpDX.Matrix ToSharpDX()
+        public Matrix4x4 ToSharpDX()
         {
-            return new SharpDX.Matrix(
+            return new Matrix4x4(
                 (float)GetInternal(pHandle, 0, 0), (float)GetInternal(pHandle, 0, 1), (float)GetInternal(pHandle, 0, 2), (float)GetInternal(pHandle, 0, 3),
                 (float)GetInternal(pHandle, 1, 0), (float)GetInternal(pHandle, 1, 1), (float)GetInternal(pHandle, 1, 2), (float)GetInternal(pHandle, 1, 3),
                 (float)GetInternal(pHandle, 2, 0), (float)GetInternal(pHandle, 2, 1), (float)GetInternal(pHandle, 2, 2), (float)GetInternal(pHandle, 2, 3),

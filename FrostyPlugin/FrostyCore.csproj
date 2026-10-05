@@ -1,6 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -11,15 +9,17 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Frosty.Core</RootNamespace>
     <AssemblyName>FrostyCore</AssemblyName>
-    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
-    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <TargetFrameworkProfile />
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Developer - Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
-    <OutputPath>bin\x64\Developer - Debug\</OutputPath>
+    <OutputPath>bin\Developer\Debug\</OutputPath>
     <DefineConstants>TRACE;DEBUG;FROSTY_DEVELOPER</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DebugType>portable</DebugType>
@@ -28,7 +28,7 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release - Alpha|x64'">
-    <OutputPath>bin\x64\Release - Alpha\</OutputPath>
+    <OutputPath>bin\Release\Alpha\</OutputPath>
     <DefineConstants>TRACE;FROSTY_ALPHA</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>portable</DebugType>
@@ -38,7 +38,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release - Beta|x64'">
-    <OutputPath>bin\x64\Release - Beta\</OutputPath>
+    <OutputPath>bin\Release\Beta\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>portable</DebugType>
@@ -48,266 +48,65 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release - Final|x64'">
-    <OutputPath>bin\x64\Release - Final\</OutputPath>
+    <OutputPath>bin\Release\Final\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>portable</DebugType>
     <PlatformTarget>x64</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <DocumentationFile>bin\x64\Release - Final\FrostyCore.xml</DocumentationFile>
+    <DocumentationFile>bin\Release - Final\FrostyCore.xml</DocumentationFile>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>..\FrostyEditor\ThirdParty\Newtonsoft.Json.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
-    <Reference Include="SharpDX">
-      <HintPath>..\FrostyEditor\ThirdParty\SharpDX.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="SharpDX.D3DCompiler">
-      <HintPath>..\FrostyEditor\ThirdParty\SharpDX.D3DCompiler.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="SharpDX.Desktop">
-      <HintPath>..\FrostyEditor\ThirdParty\SharpDX.Desktop.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="SharpDX.Direct2D1">
-      <HintPath>..\FrostyEditor\ThirdParty\SharpDX.Direct2D1.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="SharpDX.Direct3D11">
-      <HintPath>..\FrostyEditor\ThirdParty\SharpDX.Direct3D11.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="SharpDX.DXGI">
-      <HintPath>..\FrostyEditor\ThirdParty\SharpDX.DXGI.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="SharpDX.Mathematics">
-      <HintPath>..\FrostyEditor\ThirdParty\SharpDX.Mathematics.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="SharpDX.XAudio2">
-      <HintPath>..\FrostyEditor\ThirdParty\SharpDX.XAudio2.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Drawing" />
-    <Reference Include="System.Xaml" />
-    <Reference Include="System.Xml.Linq" />
-    <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <Reference Include="System.Data" />
-    <PackageReference Include="System.Net.Http" Version="4.3.4" />
-    <Reference Include="System.Xml" />
-    <Reference Include="WindowsBase" />
+    <None Remove="Themes\Generic.xaml" />
+    <None Remove="Themes\Icons.xaml" />
+    <None Remove="Windows\AssetInstancesWindow.xaml" />
+    <None Remove="Windows\ClassSelector.xaml" />
+    <None Remove="Windows\FrostyTaskWindow.xaml" />
+    <None Remove="Windows\OptionsWindow.xaml" />
+    <None Remove="Windows\RenameInstanceWindow.xaml" />
+    <None Remove="Windows\SdkUpdateWindow.xaml" />
   </ItemGroup>
+    
+  <ItemDefinitionGroup>
+    <!-- Enable `GeneratePathProperty` for all `PackageReference`s. -->
+    <PackageReference ExcludeAssets="runtime" GeneratePathProperty="true" />
+  </ItemDefinitionGroup>
+    
   <ItemGroup>
-    <Compile Include="App.cs" />
-    <Compile Include="AssetDefinition.cs" />
-    <Compile Include="Attributes\PluginAuthorAttribute.cs" />
-    <Compile Include="Attributes\PluginDisplayNameAttribute.cs" />
-    <Compile Include="Attributes\PluginNotValidForProfileAttribute.cs" />
-    <Compile Include="Attributes\PluginValidForProfileAttribute.cs" />
-    <Compile Include="Attributes\PluginVersionAttribute.cs" />
-    <Compile Include="Attributes\RegisterAssetDefinitionAttribute.cs" />
-    <Compile Include="Attributes\RegisterCustomAssetManagerAttribute.cs" />
-    <Compile Include="Attributes\RegisterExecutionAction.cs" />
-    <Compile Include="Attributes\RegisterCustomHandlerAttribute.cs" />
-    <Compile Include="Attributes\RegisterDataExplorerContextMenuAttribute.cs" />
-    <Compile Include="Attributes\RegisterGlobalTypeEditorAttribute.cs" />
-    <Compile Include="Attributes\RegisterLocalizedStringDatabaseAttribute.cs" />
-    <Compile Include="Attributes\RegisterMenuExtensionAttribute.cs" />
-    <Compile Include="Attributes\RegisterOptionsAttribute.cs" />
-    <Compile Include="Attributes\RegisterProfileAttribute.cs" />
-    <Compile Include="Attributes\RegisterShaderAttribute.cs" />
-    <Compile Include="Attributes\RegisterStartupActionAttribute.cs" />
-    <Compile Include="Attributes\RegisterTabExtensionAttribute.cs" />
-    <Compile Include="Attributes\RegisterThirdPartyDllAttribute.cs" />
-    <Compile Include="Attributes\RegisterToolbarExtensionAttribute.cs" />
-    <Compile Include="Attributes\RegisterTypeOverrideAttribute.cs" />
-    <Compile Include="Attributes\RegisterUserShaderAttribute.cs" />
-    <Compile Include="CodingStandards\FrostyCodingStandards.cs" />
-    <Compile Include="Controls\FrostyBaseAssetEditor.cs" />
-    <Compile Include="Controls\FrostyHandledExceptionBox.cs" />
-    <Compile Include="Controls\FrostyExceptionBox.cs" />
-    <Compile Include="Controls\FrostyNotification.cs" />
-    <Compile Include="Controls\VirtualizingTilePanel.cs" />
-    <Compile Include="Converters\AssetEntryToBitmapSourceConverter.cs" />
-    <Compile Include="Converters\VisibilityToBooleanConverter.cs" />
-    <Compile Include="Extensions\DataExplorerContextMenuExtension.cs" />
-    <Compile Include="Extensions\ExecutionAction.cs" />
-    <Compile Include="Extensions\StartupAction.cs" />
-    <Compile Include="Extensions\ToolbarExtension.cs" />
-    <Compile Include="FrostyConfiguration.cs" />
-    <Compile Include="FrostyLogger.cs" />
-    <Compile Include="FrostyProfileTaskWindowLogger.cs" />
-    <Compile Include="FrostyTaskLogger.cs" />
-    <Compile Include="FrostyTypeRefEditor.cs" />
-    <Compile Include="Legacy\LegacyFileManagerV2.cs" />
-    <Compile Include="Managers\NotificationManager.cs" />
-    <Compile Include="Managers\UndoManager.cs" />
-    <Compile Include="Misc\FrostyTimer.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Include="Mod\FrostyModCollection.cs" />
-    <Compile Include="Mod\FrostyModRequirement.cs" />
-    <Compile Include="Extensions\TabExtension.cs" />
-    <Compile Include="IO\Executable.cs" />
-    <Compile Include="IO\ExeReader.cs" />
-    <Compile Include="IO\FrostyModReader.cs" />
-    <Compile Include="IO\FrostyModWriter.cs" />
-    <Compile Include="IO\MemoryReader.cs" />
-    <Compile Include="Mod\BaseModResource.cs" />
-    <Compile Include="Mod\BundleModResource.cs" />
-    <Compile Include="Mod\ChunkResource.cs" />
-    <Compile Include="Mod\EbxResource.cs" />
-    <Compile Include="Mod\EditorModResource.cs" />
-    <Compile Include="Mod\EmbeddedModResource.cs" />
-    <Compile Include="Mod\FrostyModLoadException.cs" />
-    <Compile Include="Mod\HandlerExtraData.cs" />
-    <Compile Include="Mod\HandlerUsage.cs" />
-    <Compile Include="Mod\ICustomHandler.cs" />
-    <Compile Include="Mod\IFrostyMod.cs" />
-    <Compile Include="Mod\ILegacyCustomHandler.cs" />
-    <Compile Include="Mod\IModCustomHandler.cs" />
-    <Compile Include="Mod\InitFsResource.cs" />
-    <Compile Include="Mod\IResourceContainer.cs" />
-    <Compile Include="Mod\ModResourceType.cs" />
-    <Compile Include="Mod\ModSettings.cs" />
-    <Compile Include="Mod\ResResource.cs" />
-    <Compile Include="Mod\RuntimeChunkResource.cs" />
-    <Compile Include="Mod\RuntimeEbxResource.cs" />
-    <Compile Include="Mod\RuntimeResources.cs" />
-    <Compile Include="Mod\RuntimeResResource.cs" />
-    <Compile Include="Sdk\FBTypes\Bf2042.cs" />
-    <Compile Include="TypeExtensions.cs" />
-    <Compile Include="Utils\HalfUtils.cs" />
-    <Compile Include="Utils\UpdateCheckerUtils.cs" />
-    <Compile Include="Windows\FrostyProfileSelectWindow.xaml.cs">
-      <DependentUpon>FrostyProfileSelectWindow.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Windows\FrostyProfileTaskWindow.xaml.cs">
-      <DependentUpon>FrostyProfileTaskWindow.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Windows\KeyPromptWindow.xaml.cs">
-      <DependentUpon>KeyPromptWindow.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Windows\OptionsWindow.xaml.cs">
-      <DependentUpon>OptionsWindow.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Sdk\ClassesSdkCreator.cs" />
-    <Compile Include="Controls\FrostyTextureViewer.cs" />
-    <Compile Include="Sdk\FBTypes\Anthem.cs" />
-    <Compile Include="Sdk\FBTypes\AnthemDemo.cs" />
-    <Compile Include="Sdk\FBTypes\Madden20.cs" />
-    <Compile Include="Extensions\OptionsExtension.cs" />
-    <Compile Include="Bookmarks\AssetBookmarkTarget.cs" />
-    <Compile Include="Bookmarks\BookmarkContext.cs" />
-    <Compile Include="Bookmarks\BookmarkDb.cs" />
-    <Compile Include="Bookmarks\BookmarkItem.cs" />
-    <Compile Include="Bookmarks\BookmarkTarget.cs" />
-    <Compile Include="Bookmarks\FolderBookmarkTarget.cs" />
-    <Compile Include="Commands\ImportExportBoxClickCommand.cs" />
-    <Compile Include="Commands\ItemDoubleClickCommand.cs" />
-    <Compile Include="Config.cs" />
-    <Compile Include="Controls\Editors\FrostyArrayEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyBlobEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyBooleanEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyCStringEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyCustomComboDataEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyEnumEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyGuidEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyImagePathEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyLinearTransformEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyLocalizedStringReferenceEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyNumberEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyPointerRefEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyReadOnlyEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyResourceRefEditor.cs" />
-    <Compile Include="Controls\Editors\FrostySliderEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyStringEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyStructEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyTypeEditor.cs" />
-    <Compile Include="Controls\Editors\FrostyVectorEditor.cs" />
-    <Compile Include="Controls\FrostyAssetEditor.cs" />
-    <Compile Include="Controls\FrostyAssetListView.cs" />
-    <Compile Include="Controls\FrostyClassSelector.cs" />
-    <Compile Include="Controls\FrostyClipboard.cs" />
-    <Compile Include="Controls\FrostyDataExplorer.cs" />
-    <Compile Include="Controls\FrostyBaseEditor.cs" />
-    <Compile Include="Controls\FrostyFileDialogs.cs" />
-    <Compile Include="Controls\FrostyHighlightTextblock.cs" />
-    <Compile Include="Controls\FrostyImportExportBox.cs" />
-    <Compile Include="Controls\FrostyPropertyGrid.cs" />
-    <Compile Include="Controls\FrostyRenderImage.cs" />
-    <Compile Include="Controls\FrostyViewport.cs" />
-    <Compile Include="Converters\BooleanToVisibilityConverter.cs" />
-    <Compile Include="Converters\StringToBitmapSourceConverter.cs" />
-    <Compile Include="Converters\StringToPathDataConverter.cs" />
-    <Compile Include="Converters\TreeViewListSortConverter.cs" />
-    <Compile Include="FrostyProject.cs" />
-    <Compile Include="Handlers\LegacyCustomActionHandler.cs" />
-    <Compile Include="Interfaces\IEditorWindow.cs" />
-    <Compile Include="Legacy\LegacyFileEntry.cs" />
-    <Compile Include="Legacy\LegacyFileManager.cs" />
-    <Compile Include="LocalizedStringDatabase.cs" />
-    <Compile Include="Extensions\MenuExtension.cs" />
-    <Compile Include="Misc\CustomComboData.cs" />
-    <Compile Include="Mod\FrostyMod.cs" />
-    <Compile Include="Mod\FrostyModDetails.cs" />
-    <Compile Include="Managers\PluginManager.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RelayCommand.cs" />
-    <Compile Include="RenderDoc.cs" />
-    <Compile Include="Screens\TextureScreen.cs" />
-    <Compile Include="Viewport\Camera.cs" />
-    <Compile Include="Viewport\ConstantBuffer.cs" />
-    <Compile Include="Screens\DeferredRenderScreen.cs" />
-    <Compile Include="Viewport\FrostyShaderDb.cs" />
-    <Compile Include="Viewport\IViewport.cs" />
-    <Compile Include="Viewport\MeshVariationDb.cs" />
-    <Compile Include="Viewport\RenderMesh.cs" />
-    <Compile Include="Viewport\Screen.cs" />
-    <Compile Include="Viewport\SharpDXUtils.cs" />
-    <Compile Include="Viewport\TextureUtils.cs" />
-    <Compile Include="Windows\AssetInstancesWindow.xaml.cs">
-      <DependentUpon>AssetInstancesWindow.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Windows\ClassSelector.xaml.cs">
-      <DependentUpon>ClassSelector.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Windows\FrostyTaskWindow.xaml.cs">
-      <DependentUpon>FrostyTaskWindow.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Windows\PatchSummaryWindow.xaml.cs">
-      <DependentUpon>PatchSummaryWindow.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Windows\RenameInstanceWindow.xaml.cs">
-      <DependentUpon>RenameInstanceWindow.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Windows\SdkUpdateWindow.xaml.cs">
-      <DependentUpon>SdkUpdateWindow.xaml</DependentUpon>
-    </Compile>
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="5.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+    <PackageReference Include="Newtonsoft.Json" ExcludeAssets="runtime" Version="13.0.4" />
+    <PackageReference Include="SharpGen.Runtime" Version="2.4.2-beta" />
+    <PackageReference Include="SharpGen.Runtime.COM" Version="2.4.2-beta" />
+    <PackageReference Include="Vortice.D3DCompiler" ExcludeAssets="runtime" Version="3.8.2" />
+    <PackageReference Include="Vortice.Direct2D1" ExcludeAssets="runtime" Version="3.8.2" />
+    <PackageReference Include="Vortice.Direct3D11" ExcludeAssets="runtime" Version="3.8.2" />
+    <PackageReference Include="Vortice.DirectX" Version="3.8.2" />
+    <PackageReference Include="Vortice.DXGI" ExcludeAssets="runtime" Version="3.8.2" />
+    <PackageReference Include="Vortice.Mathematics" ExcludeAssets="runtime" Version="2.1.0" />
+    <PackageReference Include="Vortice.XAudio2" ExcludeAssets="runtime" Version="3.8.2" />
+    <PackageReference Include="WindowsAPICodePack" Version="8.0.15.2" />
   </ItemGroup>
+  
+  <Target Name="CopyEditorDependencies" AfterTargets="Build">
+  <ItemGroup>
+      <EditorThirdPartyFolder Include="$(SolutionDir)FrostyEditor\$(OutDir)ThirdParty\" />
+      <ModManagerThirdPartyFolder Include="$(SolutionDir)FrostyModManager\$(OutDir)ThirdParty\" />
+	  <ThirdPartyReferences Include="@(ReferencePath)" Condition="'%(ReferencePath.NuGetPackageId)' != ''" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ThirdPartyReferences)" DestinationFolder="@(EditorThirdPartyFolder)" SkipUnchangedFiles="true" />
+		<Copy SourceFiles="@(ThirdPartyReferences)" DestinationFolder="@(ModManagerThirdPartyFolder)" SkipUnchangedFiles="true" />
+</Target>
+    
   <ItemGroup>
     <ProjectReference Include="..\FrostyControls\FrostyControls.csproj">
       <Project>{51d3305b-48d0-4d4c-9d64-727185420eac}</Project>
       <Name>FrostyControls</Name>
       <Private>False</Private>
     </ProjectReference>
-    <ProjectReference Include="..\FrostyHash\FrostyHash.vcxproj">
-      <Project>{d1a29bf8-2e2e-47be-845f-a6dd66d175ba}</Project>
-      <Name>FrostyHash</Name>
-      <Private>False</Private>
-    </ProjectReference>
+    <ProjectReference Include="..\FrostyHash\FrostyHash.csproj" />
     <ProjectReference Include="..\FrostySdk\FrostySdk.csproj">
       <Project>{93fb4a0c-df89-4169-80b5-c4e2277ff7a0}</Project>
       <Name>FrostySdk</Name>
@@ -315,57 +114,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Page Include="Themes\Controls\Notification.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="Windows\FrostyProfileSelectWindow.xaml" />
-    <Page Include="Windows\FrostyProfileTaskWindow.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="Windows\KeyPromptWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Windows\OptionsWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Themes\Generic.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Themes\Icons.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Windows\AssetInstancesWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Windows\ClassSelector.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Windows\FrostyTaskWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Windows\PatchSummaryWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Windows\RenameInstanceWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Windows\SdkUpdateWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-  </ItemGroup>
-  <ItemGroup>
+    <Resource Include="AppIcon.ico" />
     <Resource Include="Images\Add.png" />
   </ItemGroup>
   <ItemGroup>
@@ -461,14 +210,4 @@
   <ItemGroup>
     <Resource Include="Images\Assets\StatFileType.png" />
   </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Sdk\Anthem-Strings.txt" />
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Sdk\Bf2042-Strings.txt" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="AppIcon.ico" />
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

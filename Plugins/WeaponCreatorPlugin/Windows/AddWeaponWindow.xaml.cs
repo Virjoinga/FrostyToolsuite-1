@@ -1,11 +1,8 @@
 ﻿using Frosty.Controls;
 using Frosty.Core;
-using Frosty.Core.Windows;
-using Frosty.Hash;
 using FrostySdk;
 using FrostySdk.Ebx;
 using FrostySdk.IO;
-using FrostySdk.Managers;
 using FrostySdk.Managers.Entries;
 using FrostySdk.Resources;
 using System;
@@ -14,7 +11,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
@@ -153,25 +149,37 @@ namespace WeaponCreatorPlugin.Windows
 
             // AntState using selected directory
             dynamic templateBpbRoot = App.AssetManager.GetEbx(templateBpbEntry).RootObject;
-            EbxAssetEntry antStateAsset = App.AssetManager.GetEbxEntry(templateBpbRoot.AntStateAssets[0].External.FileGuid);
-            dynamic antStateRoot = App.AssetManager.GetEbx(antStateAsset).RootObject;
+            EbxAssetEntry newAntState = null;
 
-            string antStateName = VerifyFileName(
-                $"animations/antanimations/gameplay/weapons/{mAntStateDirectory}/{mWeaponName}__3p_win32_antstate");
-            EbxAssetEntry newAntState = CreateAsset(antStateName, TypeLibrary.GetType("AntStateAsset"));
-            newAntState.AddedBundles.Clear();
-            newAntState.AddedBundles.Add(bundleId);
-            dynamic newAntRoot = App.AssetManager.GetEbx(newAntState).RootObject;
-
-            if (antStateRoot.ChunkSize > 0)
+            if (templateBpbRoot.AntStateAssets != null && templateBpbRoot.AntStateAssets.Count > 0)
             {
-                ChunkAssetEntry chunk = App.AssetManager.GetChunkEntry(antStateRoot.StreamingGuid);
-                ChunkAssetEntry newChunk = DuplicateChunk(chunk);
-                newChunk.AddedBundles.Clear();
-                newChunk.AddedBundles.Add(bundleId);
-                newAntRoot.StreamingGuid = newChunk.Id;
-                newAntRoot.ChunkSize = (int)App.AssetManager.GetChunk(newChunk).Length;
-                App.AssetManager.ModifyEbx(newAntState.Name, App.AssetManager.GetEbx(newAntState));
+                EbxAssetEntry antStateAsset = App.AssetManager.GetEbxEntry(templateBpbRoot.AntStateAssets[0].External.FileGuid);
+                if (antStateAsset != null)
+                {
+                    dynamic antStateRoot = App.AssetManager.GetEbx(antStateAsset).RootObject;
+
+                    string antStateName = VerifyFileName(
+                        $"animations/antanimations/gameplay/weapons/{mAntStateDirectory}/{mWeaponName}__3p_win32_antstate");
+                    newAntState = CreateAsset(antStateName, TypeLibrary.GetType("AntStateAsset"));
+                    newAntState.AddedBundles.Clear();
+                    newAntState.AddedBundles.Add(bundleId);
+                    dynamic newAntRoot = App.AssetManager.GetEbx(newAntState).RootObject;
+
+                    if (antStateRoot.ChunkSize > 0)
+                    {
+                        ChunkAssetEntry chunk = App.AssetManager.GetChunkEntry(antStateRoot.StreamingGuid);
+                        ChunkAssetEntry newChunk = DuplicateChunk(chunk);
+                        newChunk.AddedBundles.Clear();
+                        newChunk.AddedBundles.Add(bundleId);
+                        newAntRoot.StreamingGuid = newChunk.Id;
+                        newAntRoot.ChunkSize = (int)App.AssetManager.GetChunk(newChunk).Length;
+                        App.AssetManager.ModifyEbx(newAntState.Name, App.AssetManager.GetEbx(newAntState));
+                    }
+                }
+            }
+            else
+            {
+                App.Logger.Log("Base weapon missing ant state asset, no ant state asset was created.");
             }
 
             // PVZCharacterWeaponBlueprint
@@ -211,13 +219,18 @@ namespace WeaponCreatorPlugin.Windows
                 ClassGuid = App.AssetManager.GetEbx(newWeaponBP).RootInstanceGuid,
                 FileGuid = newWeaponBP.Guid
             });
-            newBpbRoot.AntStateAssets.Add(new PointerRef(new EbxImportReference
-            {
-                ClassGuid = App.AssetManager.GetEbx(newAntState).RootInstanceGuid,
-                FileGuid = newAntState.Guid
-            }));
             newBpbAsset.AddDependency(newWeaponBP.Guid);
-            newBpbAsset.AddDependency(newAntState.Guid);
+
+            if (newAntState != null)
+            {
+                newBpbRoot.AntStateAssets.Add(new PointerRef(new EbxImportReference
+                {
+                    ClassGuid = App.AssetManager.GetEbx(newAntState).RootInstanceGuid,
+                    FileGuid = newAntState.Guid
+                }));
+                newBpbAsset.AddDependency(newAntState.Guid);
+            }
+
             App.AssetManager.ModifyEbx(newBpb.Name, newBpbAsset);
 
             // Unlock asset

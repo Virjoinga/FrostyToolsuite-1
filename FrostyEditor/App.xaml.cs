@@ -1,22 +1,23 @@
-﻿using System;
-using System.IO;
-using System.Reflection;
-using System.Windows;
-using FrostySdk.Managers;
-using FrostySdk;
-using FrostyEditor.Windows;
-using Frosty.Controls;
-using FrostySdk.Interfaces;
-using FrostySdk.IO;
+﻿using Frosty.Controls;
 using Frosty.Core;
 using Frosty.Core.Controls;
 using Frosty.Core.Managers;
 using FrostyCore;
-using System.Text;
-using System.Linq;
-using Newtonsoft.Json;
-using System.Collections.Generic;
+using FrostyEditor.Windows;
+using FrostySdk;
+using FrostySdk.Interfaces;
+using FrostySdk.IO;
+using FrostySdk.Managers;
 using FrostySdk.Managers.Entries;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.Loader;
+using System.Text;
+using System.Windows;
 
 namespace FrostyEditor
 {
@@ -106,37 +107,25 @@ namespace FrostyEditor
 
         private static Assembly CurrentDomain_AssemblyResolve(object sender, ResolveEventArgs args)
         {
-            string dllname = args.Name.Contains(",") ? args.Name.Substring(0, args.Name.IndexOf(',')) : args.Name;
-            if (dllname.StartsWith("SharpDX") || dllname.StartsWith("Newtonsoft"))
-            {
-                FileInfo fi = new FileInfo(Assembly.GetExecutingAssembly().FullName);
-                return Assembly.LoadFile(fi.DirectoryName + "/ThirdParty/" + dllname + ".dll");
-            }
-            
-            if (dllname.Equals("EbxClasses"))
-            {
-                FileInfo fi = new FileInfo(Assembly.GetExecutingAssembly().FullName);
-                return Assembly.LoadFile(fi.DirectoryName + "/Profiles/" + ProfilesLibrary.SDKFilename + ".dll");
-            }
-            
-            if (dllname.Equals("AssetBankClasses"))
-            {
-                FileInfo fi = new FileInfo(Assembly.GetExecutingAssembly().FullName);
-                return Assembly.LoadFile(fi.DirectoryName + "/AssetBankProfiles/" + ProfilesLibrary.SDKFilename + ".dll");
-            }
-            
-            if (PluginManager != null)
-            {
-                if (PluginManager.IsThirdPartyDll(dllname))
-                {
-                    FileInfo fi = new FileInfo(Assembly.GetExecutingAssembly().FullName);
-                    return Assembly.LoadFile(fi.DirectoryName + "/ThirdParty/" + dllname + ".dll");
-                }
+            ReadOnlySpan<char> dllName = args.Name;
+            int commaIndex = dllName.IndexOf(',');
+            if (commaIndex is not -1)
+                dllName = dllName.Slice(0, commaIndex);
 
-                return PluginManager.GetPluginAssembly(dllname);
+            FileInfo fileInfo = new(typeof(App).Assembly.FullName);
+
+            if (dllName is "EbxClasses")
+            {
+                return AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(
+                    fileInfo.DirectoryName, $"Profiles/{ProfilesLibrary.SDKFilename}.dll"));
             }
 
-            return null;
+            /* Otherwise, check if we've got an existing assembly within the ThirdParty directory. */
+            string thirdPartyPath = Path.Combine(fileInfo.DirectoryName, $"ThirdParty/{dllName}.dll");
+            if (!File.Exists(thirdPartyPath))
+                return null;
+            else
+                return AssemblyLoadContext.Default.LoadFromAssemblyPath(thirdPartyPath);
         }
 
         public static void UpdateDiscordRpc(string state)

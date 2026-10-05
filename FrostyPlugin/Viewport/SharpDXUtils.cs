@@ -1,11 +1,11 @@
-﻿using SharpDX;
-using System;
+﻿using System;
+using System.Numerics;
 
 namespace Frosty.Core.Viewport
 {
     public class SharpDXUtils
     {
-        public static Matrix FromQuaternion(Quaternion quat)
+        public static Matrix4x4 FromQuaternion(Quaternion quat)
         {
             float num = 2f * quat.X * quat.X;
             float num2 = 2f * quat.X * quat.Y;
@@ -16,7 +16,7 @@ namespace Frosty.Core.Viewport
             float num7 = 2f * quat.Z * quat.X;
             float num8 = 2f * quat.Z * quat.Z;
             float num9 = 2f * quat.Z * quat.W;
-            Matrix result;
+            Matrix4x4 result;
             result.M11 = (float)(1.0 - ((double)num4 + (double)num8));
             result.M12 = num2 + num9;
             result.M13 = num7 - num6;
@@ -36,10 +36,10 @@ namespace Frosty.Core.Viewport
             return result;
         }
 
-        public static SharpDX.Vector3 ExtractEulerAngles(SharpDX.Matrix m)
+        public static Vector3 ExtractEulerAngles(Matrix4x4 m)
         {
             float piOver180 = (float)(Math.PI / 180.0);
-            SharpDX.Vector3 eulerRotation = new SharpDX.Vector3();
+            Vector3 eulerRotation = new();
             float num = (float)Math.Sqrt((double)m.M11 * (double)m.M11 + (double)m.M12 * (double)m.M12);
 
             if ((double)num > 1.0 / 1000.0)
@@ -78,9 +78,9 @@ namespace Frosty.Core.Viewport
             return result;
         }
 
-        public static Matrix FromLinearTransform(dynamic transform)
+        public static Matrix4x4 FromLinearTransform(dynamic transform)
         {
-            return new SharpDX.Matrix(
+            return new Matrix4x4(
                 transform.right.x, transform.right.y, transform.right.z, 0.0f,
                 transform.up.x, transform.up.y, transform.up.z, 0.0f,
                 transform.forward.x, transform.forward.y, transform.forward.z, 0.0f,

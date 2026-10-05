@@ -1,17 +1,12 @@
 ﻿using Frosty.Controls;
-using Frosty.Core.Windows;
 using Microsoft.Win32;
-using SharpDX;
 using System;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Resources;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
-using System.Windows.Controls;
 
 namespace Frosty.Core.Controls
 {

@@ -9,8 +9,8 @@ namespace AssetBankPlugin
         public SkeletonPickerDialog()
         {
             Title = "  Select Preview Skeleton";
-            Width = 520;
-            Height = 540;
+            Width = 720;
+            Height = 600;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
             var entries = App.AssetManager

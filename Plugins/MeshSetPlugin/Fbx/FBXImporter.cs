@@ -5,13 +5,14 @@ using FrostySdk.IO;
 using FrostySdk.Managers.Entries;
 using MeshSetPlugin.Fbx;
 using MeshSetPlugin.Resources;
-using SharpDX;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Frosty.Core.Windows;
 using FrostySdk.Ebx;
+using System.Numerics;
+using Vortice.Mathematics;
 
 namespace MeshSetPlugin
 {
@@ -728,7 +729,7 @@ namespace MeshSetPlugin
                     throw new FBXImportMissingTangentsException();
                 }
 
-                Matrix sectionMatrix = new FbxMatrix(sectionNode.EvaluateGlobalTransform()).ToSharpDX();
+                Matrix4x4 sectionMatrix = new FbxMatrix(sectionNode.EvaluateGlobalTransform()).ToSharpDX();
 
                 List<List<ushort>> boneIndices = new List<List<ushort>>();
                 List<List<byte>> boneWeights = new List<List<byte>>();
@@ -1015,7 +1016,7 @@ namespace MeshSetPlugin
                                                 vc.IndexArray.GetAt(mappingIndex, out actualIndex);
                                             }
 
-                                            vc.DirectArray.GetAt(actualIndex, out ColorBGRA color);
+                                            vc.DirectArray.GetAt(actualIndex, out ColorBgra color);
                                             vertex.SetValue("Color0", color);
                                         }
                                     }
@@ -1033,7 +1034,7 @@ namespace MeshSetPlugin
                                                 vc.IndexArray.GetAt(mappingIndex, out actualIndex);
                                             }
 
-                                            vc.DirectArray.GetAt(actualIndex, out ColorBGRA color);
+                                            vc.DirectArray.GetAt(actualIndex, out ColorBgra color);
                                             vertex.SetValue("Color1", color);
                                         }
                                     }
@@ -1069,7 +1070,7 @@ namespace MeshSetPlugin
                                                 layerColor.IndexArray.GetAt(mappingIndex, out actualIndex);
                                             }
 
-                                            layerColor.DirectArray.GetAt(actualIndex, out ColorBGRA color);
+                                            layerColor.DirectArray.GetAt(actualIndex, out ColorBgra color);
                                             vertex.SetValue("Delta", color);
                                         }
                                     }
@@ -1087,7 +1088,7 @@ namespace MeshSetPlugin
                                                 layerColor.IndexArray.GetAt(mappingIndex, out actualIndex);
                                             }
 
-                                            layerColor.DirectArray.GetAt(actualIndex, out ColorBGRA color);
+                                            layerColor.DirectArray.GetAt(actualIndex, out ColorBgra color);
                                             vertex.SetValue("BlendWeights", color.R / 255.0f);
                                         }
                                     }
@@ -1105,7 +1106,7 @@ namespace MeshSetPlugin
                                                 layerColor.IndexArray.GetAt(mappingIndex, out actualIndex);
                                             }
 
-                                            layerColor.DirectArray.GetAt(actualIndex, out ColorBGRA color);
+                                            layerColor.DirectArray.GetAt(actualIndex, out ColorBgra color);
                                             vertex.SetValue("RegionIds", (int)color.R);
                                         }
                                     }
@@ -1123,7 +1124,7 @@ namespace MeshSetPlugin
                                                 layerColor.IndexArray.GetAt(mappingIndex, out actualIndex);
                                             }
 
-                                            layerColor.DirectArray.GetAt(actualIndex, out ColorBGRA color);
+                                            layerColor.DirectArray.GetAt(actualIndex, out ColorBgra color);
                                             vertex.SetValue("SubMaterialIndex", color);
                                         }
                                     }
@@ -1283,7 +1284,7 @@ namespace MeshSetPlugin
                         foreach (DbObject vertex in vertices)
                         {
                             Vector4 tmp = vertex.GetValue<Vector4>("Pos");
-                            Vector4 position = Vector3.Transform(new Vector3(tmp.X, tmp.Y, tmp.Z), sectionMatrix);
+                            Vector3 position = Vector3.Transform(new Vector3(tmp.X, tmp.Y, tmp.Z), sectionMatrix);
 
                             Vector3 normal = Vector3.TransformNormal(vertex.GetValue<Vector3>("Normal"), sectionMatrix);
                             Vector3 tangent = Vector3.TransformNormal(vertex.GetValue<Vector3>("Tangent"), sectionMatrix);
@@ -1475,10 +1476,10 @@ namespace MeshSetPlugin
                                                     // convert to vertex element format
                                                     if (elem.Format == VertexElementFormat.UByte4N)
                                                     {
-                                                        axisAngle[0] = MathUtil.Clamp(axisAngle[0], 0f, 1f);
-                                                        axisAngle[1] = MathUtil.Clamp(axisAngle[1], 0f, 1f);
-                                                        axisAngle[2] = MathUtil.Clamp(axisAngle[2], 0f, 1f);
-                                                        axisAngle[3] = MathUtil.Clamp(axisAngle[3], 0f, 1f);
+                                                        axisAngle[0] = Math.Clamp(axisAngle[0], 0f, 1f);
+                                                        axisAngle[1] = Math.Clamp(axisAngle[1], 0f, 1f);
+                                                        axisAngle[2] = Math.Clamp(axisAngle[2], 0f, 1f);
+                                                        axisAngle[3] = Math.Clamp(axisAngle[3], 0f, 1f);
 
                                                         int iX = (int)(axisAngle.X * 255f + 0.5f);
                                                         int iY = (int)(axisAngle.Y * 255f + 0.5f);
@@ -1488,10 +1489,10 @@ namespace MeshSetPlugin
                                                     }
                                                     else if (elem.Format == VertexElementFormat.UShort4N)
                                                     {
-                                                        chunkWriter.Write((ushort)Math.Round(MathUtil.Clamp(axisAngle.X * 65535f, 0f, 65535f)));
-                                                        chunkWriter.Write((ushort)Math.Round(MathUtil.Clamp(axisAngle.Y * 65535f, 0f, 65535f)));
-                                                        chunkWriter.Write((ushort)Math.Round(MathUtil.Clamp(axisAngle.Z * 65535f, 0f, 65535f)));
-                                                        chunkWriter.Write((ushort)Math.Round(MathUtil.Clamp(axisAngle.W * 65535f, 0f, 65535f)));
+                                                        chunkWriter.Write((ushort)Math.Round(Math.Clamp(axisAngle.X * 65535f, 0f, 65535f)));
+                                                        chunkWriter.Write((ushort)Math.Round(Math.Clamp(axisAngle.Y * 65535f, 0f, 65535f)));
+                                                        chunkWriter.Write((ushort)Math.Round(Math.Clamp(axisAngle.Z * 65535f, 0f, 65535f)));
+                                                        chunkWriter.Write((ushort)Math.Round(Math.Clamp(axisAngle.W * 65535f, 0f, 65535f)));
                                                     }
                                                 }
                                             }
@@ -1508,7 +1509,7 @@ namespace MeshSetPlugin
                                             {
                                                 if (vertex.HasValue("Color0"))
                                                 {
-                                                    ColorBGRA color = vertex.GetValue<ColorBGRA>("Color0");
+                                                    ColorBgra color = vertex.GetValue<ColorBgra>("Color0");
                                                     chunkWriter.Write(color.R);
                                                     chunkWriter.Write(color.G);
                                                     chunkWriter.Write(color.B);
@@ -1525,7 +1526,7 @@ namespace MeshSetPlugin
                                             {
                                                 if (vertex.HasValue("Color1"))
                                                 {
-                                                    ColorBGRA color = vertex.GetValue<ColorBGRA>("Color0");
+                                                    ColorBgra color = vertex.GetValue<ColorBgra>("Color0");
                                                     chunkWriter.Write(color.R);
                                                     chunkWriter.Write(color.G);
                                                     chunkWriter.Write(color.B);
@@ -1558,7 +1559,7 @@ namespace MeshSetPlugin
                                             {
                                                 if (vertex.HasValue("Delta"))
                                                 {
-                                                    ColorBGRA color = vertex.GetValue<ColorBGRA>("Delta");
+                                                    ColorBgra color = vertex.GetValue<ColorBgra>("Delta");
                                                     chunkWriter.Write(HalfUtils.Pack(color.R * 255.0f));
                                                     chunkWriter.Write(HalfUtils.Pack(color.G * 255.0f));
                                                     chunkWriter.Write(HalfUtils.Pack(color.B * 255.0f));
@@ -1606,7 +1607,7 @@ namespace MeshSetPlugin
                                             {
                                                 if (vertex.HasValue("SubMaterialIndex"))
                                                 {
-                                                    ColorBGRA subMaterialIndex = vertex.GetValue<ColorBGRA>("SubMaterialIndex");
+                                                    ColorBgra subMaterialIndex = vertex.GetValue<ColorBgra>("SubMaterialIndex");
                                                     chunkWriter.Write(subMaterialIndex.R);
                                                     chunkWriter.Write(subMaterialIndex.G);
                                                     chunkWriter.Write(subMaterialIndex.B);

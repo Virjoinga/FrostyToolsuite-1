@@ -26,11 +26,11 @@ namespace AssetBankPlugin.Render
 
         private volatile bool _forceSkeletonUpdate = false;
 
-        /*public void LoadSkeleton(MeshRenderSkeleton skeleton)
+        public void LoadSkeleton(MeshRenderSkeleton skeleton)
         {
             CurrentSkeleton = skeleton;
             VisualizeSkeleton = skeleton;
-        }*/
+        }
 
         public void LoadAnimation(MeshRenderAnim anim, InternalAnimation internalAnim, int endFrame)
         {
@@ -43,6 +43,20 @@ namespace AssetBankPlugin.Render
             CurrentFrame = 0;
             IsPaused = false;
             SetAnimation(anim);
+        }
+
+        public void Clear()
+        {
+            _storedAnim = null;
+            _storedEndFrame = 0;
+            _currentRenderAnim = null;
+            TotalFrames = 1;
+            _currentTime = 0;
+            _trackFrame = 0;
+            CurrentFrame = 0;
+            IsPaused = false;
+            SetAnimation(null);
+            FrameChanged?.Invoke(0);
         }
 
         public void Restart()

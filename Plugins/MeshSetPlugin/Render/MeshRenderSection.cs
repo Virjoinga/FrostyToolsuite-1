@@ -1,9 +1,9 @@
 ﻿using Frosty.Core.Viewport;
 using MeshSetPlugin.Resources;
-using SharpDX;
-using SharpDX.Direct3D;
 using System.Collections.Generic;
-using D3D11 = SharpDX.Direct3D11;
+using System.Numerics;
+using Vortice.Direct3D;
+using D3D11 = Vortice.Direct3D11;
 
 namespace MeshSetPlugin.Render
 {
@@ -11,13 +11,16 @@ namespace MeshSetPlugin.Render
     {
         public ShaderPermutation Permutation;
         public MeshRenderSkeleton Skeleton;
-        public D3D11.Buffer VertexParameters;
-        public D3D11.Buffer PixelParameters;
-        public D3D11.Buffer[] VertexBuffers;
-        public D3D11.VertexBufferBinding[] VertexBufferBindings;
-        public List<D3D11.ShaderResourceView> VertexTextures = new List<D3D11.ShaderResourceView>();
-        public List<D3D11.SamplerState> VertexSamplers = new List<D3D11.SamplerState>();
-        public List<D3D11.ShaderResourceView> PixelTextures = new List<D3D11.ShaderResourceView>();
+        public D3D11.ID3D11Buffer VertexParameters;
+        public D3D11.ID3D11Buffer PixelParameters;
+
+        public D3D11.ID3D11Buffer[] VertexBuffers;
+        public uint[] Strides;
+        public uint[] Offsets;
+
+        public List<D3D11.ID3D11ShaderResourceView> VertexTextures = new();
+        public List<D3D11.ID3D11SamplerState> VertexSamplers = new();
+        public List<D3D11.ID3D11ShaderResourceView> PixelTextures = new();
         public MeshSetSection MeshSection;
         public int StartIndex;
         public int VertexOffset;
@@ -34,29 +37,23 @@ namespace MeshSetPlugin.Render
 
         public string DebugName => MeshSection.Name;
 
-        public void SetState(D3D11.DeviceContext context, MeshRenderPath renderPath)
+        public void SetState(D3D11.ID3D11DeviceContext context, MeshRenderPath renderPath)
         {
             if (Permutation.IsSkinned)
             {
                 // obtain bone matrices from skeleton
-                List<Matrix> boneMatrices = new List<Matrix>();
+                List<Matrix4x4> boneMatrices = new();
                 for (int i = 0; i < BoneIndices.Count; i++)
                 {
                     int boneIndex = (int)BoneIndices[i];
                     if ((BoneIndices[i] & 0x8000) != 0)
-                    {
                         boneIndex = (boneIndex & 0x7FFF) + Skeleton.BoneCount;
-                    }
 
                     while (i >= boneMatrices.Count)
-                    {
-                        boneMatrices.Add(Matrix.Identity);
-                    }
+                        boneMatrices.Add(Matrix4x4.Identity);
 
                     if (boneIndex == -1)
-                    {
                         continue;
-                    }
 
                     boneMatrices[i] = Skeleton.GetBoneMatrix(boneIndex);
                 }
@@ -67,19 +64,19 @@ namespace MeshSetPlugin.Render
 
             Permutation.SetState(context, renderPath);
 
-            context.InputAssembler.PrimitiveTopology = PrimitiveType;
-            context.InputAssembler.SetVertexBuffers(0, VertexBufferBindings);
+            context.IASetPrimitiveTopology(PrimitiveType);
+            context.IASetVertexBuffers(0, VertexBuffers, Strides, Offsets);
 
             if (renderPath != MeshRenderPath.Shadows)
             {
-                context.PixelShader.SetShaderResources(1, PixelTextures.ToArray());
-                context.PixelShader.SetConstantBuffer(2, PixelParameters);
+                context.PSSetShaderResources(1, PixelTextures.ToArray());
+                context.PSSetConstantBuffer(2, PixelParameters);
             }
         }
 
-        public void Draw(D3D11.DeviceContext context)
+        public void Draw(D3D11.ID3D11DeviceContext context)
         {
-            context.DrawIndexed(PrimitiveCount * 3, StartIndex, 0);
+            context.DrawIndexed((uint)(PrimitiveCount * 3), (uint)(StartIndex), 0);
         }
     }
 }

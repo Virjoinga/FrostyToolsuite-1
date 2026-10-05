@@ -23,12 +23,20 @@ namespace AssetBankPlugin.Formats.GenericData2
 
         private readonly bool _isBigEndian;
 
+        private readonly Dictionary<int, string> _stringCache = new Dictionary<int, string>();
+        private readonly Dictionary<long, Dictionary<string, object>> _objectCache = new Dictionary<long, Dictionary<string, object>>();
+
         [StructLayout(LayoutKind.Explicit)]
         private struct FloatUnion { [FieldOffset(0)] public uint UInt; [FieldOffset(0)] public float Float; }
 
         [StructLayout(LayoutKind.Explicit)]
         private struct DoubleUnion { [FieldOffset(0)] public ulong ULong; [FieldOffset(0)] public double Double; }
 
+        public void ClearCaches()
+        {
+            _stringCache.Clear();
+            _objectCache.Clear();
+        }
         public SectionData2(NativeReader r, Endian bankEndian)
         {
             long startPos = r.BaseStream.Position;
@@ -53,22 +61,58 @@ namespace AssetBankPlugin.Formats.GenericData2
         public NativeReader GetPatchedReader() => _patchedReader;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private uint R_U32(int o) => _isBigEndian ? (uint)_patchedData[o] << 24 | (uint)_patchedData[o + 1] << 16 | (uint)_patchedData[o + 2] << 8 | _patchedData[o + 3] : BitConverter.ToUInt32(_patchedData, o);
+        private uint R_U32(int o)
+        {
+            var d = _patchedData;
+            return _isBigEndian
+                ? (uint)((d[o] << 24) | (d[o + 1] << 16) | (d[o + 2] << 8) | d[o + 3])
+                : (uint)(d[o] | (d[o + 1] << 8) | (d[o + 2] << 16) | (d[o + 3] << 24));
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int R_I32(int o) => _isBigEndian ? _patchedData[o] << 24 | _patchedData[o + 1] << 16 | _patchedData[o + 2] << 8 | _patchedData[o + 3] : BitConverter.ToInt32(_patchedData, o);
+        private int R_I32(int o)
+        {
+            var d = _patchedData;
+            return _isBigEndian
+                ? (d[o] << 24) | (d[o + 1] << 16) | (d[o + 2] << 8) | d[o + 3]
+                : d[o] | (d[o + 1] << 8) | (d[o + 2] << 16) | (d[o + 3] << 24);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private ulong R_U64(int o) => _isBigEndian ? (ulong)_patchedData[o] << 56 | (ulong)_patchedData[o + 1] << 48 | (ulong)_patchedData[o + 2] << 40 | (ulong)_patchedData[o + 3] << 32 | (ulong)_patchedData[o + 4] << 24 | (ulong)_patchedData[o + 5] << 16 | (ulong)_patchedData[o + 6] << 8 | _patchedData[o + 7] : BitConverter.ToUInt64(_patchedData, o);
+        private ulong R_U64(int o)
+        {
+            var d = _patchedData;
+            return _isBigEndian
+                ? ((ulong)d[o] << 56) | ((ulong)d[o + 1] << 48) | ((ulong)d[o + 2] << 40) | ((ulong)d[o + 3] << 32) | ((ulong)d[o + 4] << 24) | ((ulong)d[o + 5] << 16) | ((ulong)d[o + 6] << 8) | d[o + 7]
+                : (ulong)d[o] | ((ulong)d[o + 1] << 8) | ((ulong)d[o + 2] << 16) | ((ulong)d[o + 3] << 24) | ((ulong)d[o + 4] << 32) | ((ulong)d[o + 5] << 40) | ((ulong)d[o + 6] << 48) | ((ulong)d[o + 7] << 56);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private long R_I64(int o) => _isBigEndian ? (long)_patchedData[o] << 56 | (long)_patchedData[o + 1] << 48 | (long)_patchedData[o + 2] << 40 | (long)_patchedData[o + 3] << 32 | (long)_patchedData[o + 4] << 24 | (long)_patchedData[o + 5] << 16 | (long)_patchedData[o + 6] << 8 | _patchedData[o + 7] : BitConverter.ToInt64(_patchedData, o);
+        private long R_I64(int o)
+        {
+            var d = _patchedData;
+            return _isBigEndian
+                ? ((long)d[o] << 56) | ((long)d[o + 1] << 48) | ((long)d[o + 2] << 40) | ((long)d[o + 3] << 32) | ((long)d[o + 4] << 24) | ((long)d[o + 5] << 16) | ((long)d[o + 6] << 8) | d[o + 7]
+                : (long)d[o] | ((long)d[o + 1] << 8) | ((long)d[o + 2] << 16) | ((long)d[o + 3] << 24) | ((long)d[o + 4] << 32) | ((long)d[o + 5] << 40) | ((long)d[o + 6] << 48) | ((long)d[o + 7] << 56);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private ushort R_U16(int o) => _isBigEndian ? (ushort)(_patchedData[o] << 8 | _patchedData[o + 1]) : BitConverter.ToUInt16(_patchedData, o);
+        private ushort R_U16(int o)
+        {
+            var d = _patchedData;
+            return _isBigEndian
+                ? (ushort)((d[o] << 8) | d[o + 1])
+                : (ushort)(d[o] | (d[o + 1] << 8));
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private short R_I16(int o) => _isBigEndian ? (short)(_patchedData[o] << 8 | _patchedData[o + 1]) : BitConverter.ToInt16(_patchedData, o);
+        private short R_I16(int o)
+        {
+            var d = _patchedData;
+            return _isBigEndian
+                ? (short)((d[o] << 8) | d[o + 1])
+                : (short)(d[o] | (d[o + 1] << 8));
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private float R_F32(int o) => new FloatUnion { UInt = R_U32(o) }.Float;
@@ -77,19 +121,32 @@ namespace AssetBankPlugin.Formats.GenericData2
         private double R_F64(int o) => new DoubleUnion { ULong = R_U64(o) }.Double;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private Guid R_Guid(int o) => new Guid((int)R_U32(o), R_I16(o + 4), R_I16(o + 6), _patchedData[o + 8], _patchedData[o + 9], _patchedData[o + 10], _patchedData[o + 11], _patchedData[o + 12], _patchedData[o + 13], _patchedData[o + 14], _patchedData[o + 15]);
+        private Guid R_Guid(int o)
+        {
+            var d = _patchedData;
+            return new Guid((int)R_U32(o), R_I16(o + 4), R_I16(o + 6), d[o + 8], d[o + 9], d[o + 10], d[o + 11], d[o + 12], d[o + 13], d[o + 14], d[o + 15]);
+        }
 
         private string R_NullStr(int o)
         {
             if (o < 0 || o >= _patchedData.Length) return "";
+
+            if (_stringCache.TryGetValue(o, out string cachedStr)) return cachedStr;
+
             int end = o;
             int bufLen = _patchedData.Length;
             while (end < bufLen && _patchedData[end] != 0) end++;
-            return Encoding.UTF8.GetString(_patchedData, o, end - o);
+
+            string s = Encoding.UTF8.GetString(_patchedData, o, end - o);
+            _stringCache[o] = s;
+            return s;
         }
 
         public Dictionary<string, object> ReadObjectAt(long headerFileOffset, Dictionary<uint, GenericClass2> classes)
         {
+            if (_objectCache.TryGetValue(headerFileOffset, out var cachedLayout))
+                return cachedLayout;
+
             int bufOff = (int)(headerFileOffset - DataOffset);
             if (bufOff < 0 || bufOff + 16 > _patchedData.Length) return null;
 
@@ -100,8 +157,9 @@ namespace AssetBankPlugin.Formats.GenericData2
             if (!classes.TryGetValue(typeHash, out GenericClass2 layout)) return null;
 
             var result = ReadValues(bufOff + 16, layout, classes);
-            // CRITICAL: Embed TypeHash into the parsed dictionary so the serializer knows how to pack it later
             result["__typeHash"] = typeHash;
+
+            _objectCache[headerFileOffset] = result;
             return result;
         }
 
@@ -197,7 +255,6 @@ namespace AssetBankPlugin.Formats.GenericData2
                         long pVal = R_I64(bufOff);
                         if (pVal == 0 || pVal == -1) return null;
                         long pPos = DataOffset + bufOff;
-                        // Skip +16 bytes into the LayoutData block header where the TypeHash begins
                         return ReadObjectAt(pPos + (pVal << 4 >> 4) + 16, classes);
                     }
 
@@ -225,7 +282,6 @@ namespace AssetBankPlugin.Formats.GenericData2
                             return "";
                         }
 
-                        // Skip +16 bytes into the LayoutData block header
                         return ReadObjectAt(target + 16, classes);
                     }
                     else
@@ -238,16 +294,14 @@ namespace AssetBankPlugin.Formats.GenericData2
 
         private object ReadArray(int bufOff, GenericField2 field, int count, Dictionary<uint, GenericClass2> classes)
         {
-            if (count <= 0) return new object[0];
-
-            if (count > 5_000_000) return new object[0];
+            if (count <= 0 || count > 5_000_000) return new object[0];
 
             bool isReference = field.Size == 8 && field.Alignment == 8
                             && !PrimitiveTypeMap.IsPrimitive(field.TypeHash)
                             && field.TypeHash != 0;
 
             bool isStringArray = field.Type == "String[]"
-                              || field.ElementTypeHash != 0 && field.ElementTypeHash == 0x11;
+                              || (field.ElementTypeHash != 0 && field.ElementTypeHash == 0x11);
 
             uint elemSize = field.Size;
             uint elemAlign = field.Alignment;
@@ -264,7 +318,104 @@ namespace AssetBankPlugin.Formats.GenericData2
             if (elemSize == 0) elemSize = 1;
             if (elemAlign == 0) elemAlign = 1;
 
-            uint stride = elemSize + elemAlign - 1 & ~(elemAlign - 1);
+            uint stride = (elemSize + elemAlign - 1) & ~(elemAlign - 1);
+
+            if (!isReference && !isStringArray && PrimitiveTypeMap.IsPrimitive(field.TypeHash))
+            {
+                bool canBlockCopy = !_isBigEndian && (stride == elemSize);
+                int intStride = (int)stride;
+
+                switch (field.TypeHash)
+                {
+                    case 0x01:  
+                        var bArr = new bool[count];
+                        for (int i = 0; i < count; i++) bArr[i] = _patchedData[bufOff + i * intStride] != 0;
+                        return bArr;
+                    case 0x02:  
+                        var sbArr = new sbyte[count];
+                        if (canBlockCopy) Buffer.BlockCopy(_patchedData, bufOff, sbArr, 0, count);
+                        else for (int i = 0; i < count; i++) sbArr[i] = (sbyte)_patchedData[bufOff + i * intStride];
+                        return sbArr;
+                    case 0x03:  
+                        var byArr = new byte[count];
+                        if (canBlockCopy) Buffer.BlockCopy(_patchedData, bufOff, byArr, 0, count);
+                        else for (int i = 0; i < count; i++) byArr[i] = _patchedData[bufOff + i * intStride];
+                        return byArr;
+                    case 0x04:  
+                        var sArr = new short[count];
+                        if (canBlockCopy) Buffer.BlockCopy(_patchedData, bufOff, sArr, 0, count * 2);
+                        else for (int i = 0; i < count; i++) sArr[i] = R_I16(bufOff + i * intStride);
+                        return sArr;
+                    case 0x05:  
+                        var usArr = new ushort[count];
+                        if (canBlockCopy) Buffer.BlockCopy(_patchedData, bufOff, usArr, 0, count * 2);
+                        else for (int i = 0; i < count; i++) usArr[i] = R_U16(bufOff + i * intStride);
+                        return usArr;
+                    case 0x06:  
+                        var iArr = new int[count];
+                        if (canBlockCopy) Buffer.BlockCopy(_patchedData, bufOff, iArr, 0, count * 4);
+                        else for (int i = 0; i < count; i++) iArr[i] = R_I32(bufOff + i * intStride);
+                        return iArr;
+                    case 0x07:  
+                        var uiArr = new uint[count];
+                        if (canBlockCopy) Buffer.BlockCopy(_patchedData, bufOff, uiArr, 0, count * 4);
+                        else for (int i = 0; i < count; i++) uiArr[i] = R_U32(bufOff + i * intStride);
+                        return uiArr;
+                    case 0x08:  
+                        var lArr = new long[count];
+                        if (canBlockCopy) Buffer.BlockCopy(_patchedData, bufOff, lArr, 0, count * 8);
+                        else for (int i = 0; i < count; i++) lArr[i] = R_I64(bufOff + i * intStride);
+                        return lArr;
+                    case 0x09:  
+                        var ulArr = new ulong[count];
+                        if (canBlockCopy) Buffer.BlockCopy(_patchedData, bufOff, ulArr, 0, count * 8);
+                        else for (int i = 0; i < count; i++) ulArr[i] = R_U64(bufOff + i * intStride);
+                        return ulArr;
+                    case 0x0A:  
+                        var fArr = new float[count];
+                        if (canBlockCopy) Buffer.BlockCopy(_patchedData, bufOff, fArr, 0, count * 4);
+                        else for (int i = 0; i < count; i++) fArr[i] = R_F32(bufOff + i * intStride);
+                        return fArr;
+                    case 0x13:  
+                        var dArr = new double[count];
+                        if (canBlockCopy) Buffer.BlockCopy(_patchedData, bufOff, dArr, 0, count * 8);
+                        else for (int i = 0; i < count; i++) dArr[i] = R_F64(bufOff + i * intStride);
+                        return dArr;
+                }
+            }
+
+            if (isStringArray)
+            {
+                var strArr = new string[count];
+                for (int i = 0; i < count; i++)
+                {
+                    int offset = (int)(i * stride);
+                    long refVal = R_I64(bufOff + offset);
+
+                    if (refVal == 0 || refVal == -1)
+                    {
+                        strArr[i] = "";
+                        continue;
+                    }
+
+                    long refPos = DataOffset + bufOff + offset;
+                    long target = refPos + (refVal << 4 >> 4);
+                    int tOff = (int)(target - DataOffset);
+                    uint cnt = R_U32(tOff + 4);
+                    long ptr = R_I64(tOff + 8);
+
+                    if (ptr != 0 && ptr != -1 && cnt > 0)
+                    {
+                        long strTarget = target + 8 + (ptr << 4 >> 4);
+                        strArr[i] = R_NullStr((int)(strTarget - DataOffset));
+                    }
+                    else
+                    {
+                        strArr[i] = "";
+                    }
+                }
+                return strArr;
+            }
 
             var arr = new object[count];
             for (int i = 0; i < count; i++)
@@ -283,25 +434,7 @@ namespace AssetBankPlugin.Formats.GenericData2
 
                     long refPos = DataOffset + bufOff + offset;
                     long target = refPos + (refVal << 4 >> 4);
-
-                    if (isStringArray)
-                    {
-                        int tOff = (int)(target - DataOffset);
-                        uint cnt = R_U32(tOff + 4);
-                        long ptr = R_I64(tOff + 8);
-                        string s = "";
-                        if (ptr != 0 && ptr != -1 && cnt > 0)
-                        {
-                            long strTarget = target + 8 + (ptr << 4 >> 4);
-                            s = R_NullStr((int)(strTarget - DataOffset));
-                        }
-                        arr[i] = s;
-                    }
-                    else
-                    {
-                        // Skip +16 bytes into the LayoutData block header
-                        arr[i] = ReadObjectAt(target + 16, classes);
-                    }
+                    arr[i] = ReadObjectAt(target + 16, classes);
                 }
                 else
                 {

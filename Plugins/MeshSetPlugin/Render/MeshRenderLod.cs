@@ -4,14 +4,17 @@ using Frosty.Hash;
 using FrostySdk;
 using FrostySdk.IO;
 using FrostySdk.Managers;
+using FrostySdk.Managers.Entries;
 using MeshSetPlugin.Resources;
-using SharpDX;
-using SharpDX.Direct3D;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using FrostySdk.Managers.Entries;
-using D3D11 = SharpDX.Direct3D11;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using Vortice;
+using Vortice.Direct3D;
+using Vortice.DXGI;
+using D3D11 = Vortice.Direct3D11;
 
 namespace MeshSetPlugin.Render
 {
@@ -20,27 +23,28 @@ namespace MeshSetPlugin.Render
         public IEnumerable<MeshRenderSection> Sections => sections;
         public override string DebugName => meshLod.ShortName;
 
-        private D3D11.Buffer indexBuffer;
-        private SharpDX.DXGI.Format indexBufferFormat;
+        private D3D11.ID3D11Buffer indexBuffer;
+        private Format indexBufferFormat;
         private List<MeshRenderSection> sections = new List<MeshRenderSection>();
         private MeshSetLod meshLod;
 
-        public MeshRenderLod(RenderCreateState state, MeshSetLod lod, MeshMaterialCollection materials, MeshRenderSkeleton skeleton)
+        public unsafe MeshRenderLod(RenderCreateState state, MeshSetLod lod, MeshMaterialCollection materials, MeshRenderSkeleton skeleton)
         {
             meshLod = lod;
 
             byte[] chunkData = GetChunkData();
-            using (DataStream chunkStream = new DataStream((int)lod.IndexBufferSize, false, true))
+            using (Vortice.DataStream chunkStream = new Vortice.DataStream((int)lod.IndexBufferSize, false, true))
             {
                 chunkStream.Write(chunkData, (int)lod.VertexBufferSize, (int)lod.IndexBufferSize);
                 chunkStream.Position = 0;
 
-                indexBuffer = new D3D11.Buffer(state.Device, chunkStream, (int)lod.IndexBufferSize, D3D11.ResourceUsage.Default, D3D11.BindFlags.IndexBuffer, D3D11.CpuAccessFlags.None, D3D11.ResourceOptionFlags.None, lod.IndexUnitSize / 8);
+                ReadOnlySpan<byte> data = new(chunkStream.BaseUnsafePointer, (int)(lod.IndexBufferSize));
+                indexBuffer = state.Device.CreateBuffer(data, D3D11.BindFlags.IndexBuffer, D3D11.ResourceUsage.Default, D3D11.CpuAccessFlags.None, D3D11.ResourceOptionFlags.None, structureByteStride: (uint)(lod.IndexUnitSize / 8));
             }
 
             indexBufferFormat = (lod.IndexUnitSize == 16)
-                ? SharpDX.DXGI.Format.R16_UInt
-                : SharpDX.DXGI.Format.R32_UInt;
+                ? Format.R16_UInt
+                : Format.R32_UInt;
 
             foreach (MeshSetSection section in lod.Sections)
             {
@@ -48,16 +52,12 @@ namespace MeshSetPlugin.Render
                 if (lod.IsSectionRenderable(section) || lod.IsSectionInCategory(section, MeshSubsetCategory.MeshSubsetCategory_ZOnly))
                 {
                     if (section.VertexCount == 0)
-                    {
                         continue;
-                    }
 
                     MeshMaterial material = materials[section.MaterialId];
                     EbxAssetEntry shaderAsset = App.AssetManager.GetEbxEntry(material.Shader.External.FileGuid);
                     if (shaderAsset == null)
-                    {
                         continue;
-                    }
 
                     ShaderPermutation permutation = state.ShaderLibrary.GetUserShader(shaderAsset.Name, section.GeometryDeclDesc[0]);
 
@@ -65,9 +65,7 @@ namespace MeshSetPlugin.Render
                     if (permutation != null)
                     {
                         if (!permutation.LoadShaders(state.Device))
-                        {
                             permutation = null;
-                        }
                     }
                     renderSection.StartIndex = (int)section.StartIndex;
                     renderSection.VertexOffset = (int)section.VertexOffset;
@@ -83,7 +81,7 @@ namespace MeshSetPlugin.Render
                             skeleton.AddBone(new MeshRenderSkeleton.Bone()
                             {
                                 NameHash = Fnv1.HashString("Part"),
-                                ModelPose = Matrix.Identity,
+                                ModelPose = Matrix4x4.Identity,
                                 LocalPose = SharpDXUtils.FromLinearTransform(lt),
                                 ParentBoneId = -1
                             });
@@ -126,16 +124,12 @@ namespace MeshSetPlugin.Render
             if (permutation != null)
             {
                 if (!permutation.LoadShaders(state.Device))
-                {
                     permutation = null;
-                }
             }
 
             bool bRequiresRebuild = (section.IsFallback && permutation != null) || (!section.IsFallback && permutation == null);
             if (bRequiresRebuild)
-            {
                 RebuildSection(state, section, permutation, GetChunkData());
-            }
 
             if (section.IsFallback)
             {
@@ -156,9 +150,7 @@ namespace MeshSetPlugin.Render
             foreach (MeshRenderSection section in sections)
             {
                 if (section.MeshSection.MaterialId == materialIdx)
-                {
                     UpdateSectionMaterial(state, section, material);
-                }
             }
         }
 
@@ -167,80 +159,63 @@ namespace MeshSetPlugin.Render
             foreach (MeshRenderSection section in sections)
             {
                 if (section.MeshSection.MaterialId < materials.Count)
-                {
                     UpdateSectionMaterial(state, section, materials[section.MeshSection.MaterialId]);
-                }
             }
         }
 
         public MeshRenderSection GetSection(int idx)
         {
             if (idx >= sections.Count)
-            {
                 return null;
-            }
-
             return sections[idx];
         }
 
-        public override void Render(D3D11.DeviceContext context, MeshRenderPath renderPath)
+        public override void Render(D3D11.ID3D11DeviceContext context, MeshRenderPath renderPath)
         {
             if (sections.Count == 0)
-            {
                 return;
-            }
 
-            context.InputAssembler.SetIndexBuffer(indexBuffer, indexBufferFormat, 0);
+            context.IASetIndexBuffer(indexBuffer, indexBufferFormat, 0);
             foreach (MeshRenderSection section in sections)
             {
                 // during shadow pass, draw Z-Only meshes
                 if (renderPath == MeshRenderPath.Shadows && !meshLod.IsSectionInCategory(section.MeshSection, MeshSubsetCategory.MeshSubsetCategory_ZOnly))
-                {
                     continue;
-                }
 
                 // during deferred pass, draw renderable meshes
                 if (renderPath != MeshRenderPath.Shadows && !meshLod.IsSectionRenderable(section.MeshSection))
-                {
                     continue;
-                }
 
                 // only render selected sections during selection pass
                 if (renderPath == MeshRenderPath.Selection && !section.IsSelected)
-                {
                     continue;
-                }
 
                 // dont render invisible sections (exception during selection pass if selected)
                 if (!section.IsVisible)
                 {
                     if (renderPath != MeshRenderPath.Selection || !section.IsSelected)
-                    {
                         continue;
-                    }
                 }
 
                 D3DUtils.BeginPerfEvent(context, section.DebugName);
                 {
-                    D3D11.RasterizerState oldState = context.Rasterizer.State;
+                    D3D11.ID3D11RasterizerState oldState = context.RSGetState();
 
                     section.SetState(context, renderPath);
                     section.Draw(context);
 
-                    context.Rasterizer.State = oldState;
+                    context.RSSetState(oldState);
                 }
                 D3DUtils.EndPerfEvent(context);
             }
         }
 
-        private void RebuildSection(RenderCreateState state, MeshRenderSection section, ShaderPermutation permutation, byte[] chunkData)
+        private unsafe void RebuildSection(RenderCreateState state, MeshRenderSection section, ShaderPermutation permutation, byte[] chunkData)
         {
             if (section.VertexBuffers != null)
             {
-                foreach (D3D11.Buffer vb in section.VertexBuffers)
-                {
+                foreach (D3D11.ID3D11Buffer vb in section.VertexBuffers)
                     vb.Dispose();
-                }
             }
 
             using (NativeReader reader = new NativeReader(new MemoryStream(chunkData)))
@@ -248,7 +223,7 @@ namespace MeshSetPlugin.Render
                 reader.Position = section.VertexOffset;
                 if (permutation == null)
                 {
-                    section.VertexStride = Utilities.SizeOf<FallbackVertex>();
+                    section.VertexStride = Marshal.SizeOf<FallbackVertex>();
                     section.IsFallback = true;
 
                     int size = (int)(section.VertexStride * section.MeshSection.VertexCount);
@@ -257,21 +232,24 @@ namespace MeshSetPlugin.Render
                 else
                 {
                     section.IsFallback = false;
-                    section.VertexBuffers = new D3D11.Buffer[section.MeshSection.GeometryDeclDesc[0].StreamCount];
-                    section.VertexBufferBindings = new D3D11.VertexBufferBinding[section.MeshSection.GeometryDeclDesc[0].StreamCount];
+                    section.VertexBuffers = new D3D11.ID3D11Buffer[section.MeshSection.GeometryDeclDesc[0].StreamCount];
+                    section.Strides = new uint[section.MeshSection.GeometryDeclDesc[0].StreamCount];
+                    section.Offsets = new uint[section.MeshSection.GeometryDeclDesc[0].StreamCount];
 
                     for (int i = 0; i < section.VertexBuffers.Length; i++)
                     {
                         GeometryDeclarationDesc.Stream stream = section.MeshSection.GeometryDeclDesc[0].Streams[i];
 
                         int size = (int)(stream.VertexStride * section.MeshSection.VertexCount);
-                        using (DataStream chunkStream = new DataStream(size, false, true))
+                        using (Vortice.DataStream chunkStream = new Vortice.DataStream(size, false, true))
                         {
                             chunkStream.Write(reader.ReadBytes(size), 0, size);
                             chunkStream.Position = 0;
 
-                            section.VertexBuffers[i] = new D3D11.Buffer(state.Device, chunkStream, size, D3D11.ResourceUsage.Default, D3D11.BindFlags.VertexBuffer, D3D11.CpuAccessFlags.None, D3D11.ResourceOptionFlags.None, 0);
-                            section.VertexBufferBindings[i] = new D3D11.VertexBufferBinding(section.VertexBuffers[i], stream.VertexStride, 0);
+                            ReadOnlySpan<byte> data = new(chunkStream.BaseUnsafePointer, size);
+                            section.VertexBuffers[i] = state.Device.CreateBuffer(data, D3D11.BindFlags.VertexBuffer, D3D11.ResourceUsage.Default, D3D11.CpuAccessFlags.None, D3D11.ResourceOptionFlags.None, structureByteStride: 0);
+                            section.Offsets[i] = 0;
+                            section.Strides[i] = stream.VertexStride;
                         }
                     }
                 }
@@ -290,17 +268,13 @@ namespace MeshSetPlugin.Render
                     foreach (uint boneIdx in section.MeshSection.BoneList)
                     {
                         while (section.BoneIndices.Count <= boneIdx)
-                        {
                             section.BoneIndices.Add(i++);
-                        }
                     }
                 }
                 else if (meshLod.PartCount > 0)
                 {
                     for (uint i = 0; i < meshLod.PartCount; i++)
-                    {
                         section.BoneIndices.Add(i);
-                    }
                 }
                 else
                 {
@@ -311,19 +285,19 @@ namespace MeshSetPlugin.Render
             {
                 // add section bones to list
                 foreach (ushort boneId in section.MeshSection.BoneList)
-                {
                     section.BoneIndices.Add(boneId);
-                }
 
                 // special handling for games that only use the mesh lod bone list
-                if (ProfilesLibrary.IsLoaded(ProfileVersion.Anthem, ProfileVersion.Fifa19,
-                    ProfileVersion.Fifa20, ProfileVersion.PlantsVsZombiesBattleforNeighborville))
+                if (ProfilesLibrary.DataVersion == (int)ProfileVersion.Anthem || ProfilesLibrary.DataVersion == (int)ProfileVersion.Fifa19 || ProfilesLibrary.DataVersion == (int)ProfileVersion.Fifa20
+#if FROSTY_DEVELOPER || FROSTY_ALPHA
+                    || ProfilesLibrary.DataVersion == (int)ProfileVersion.PlantsVsZombiesBattleforNeighborville
+#endif
+                    )
                 {
                     section.BoneIndices.Clear();
                     section.BoneIndices.AddRange(meshLod.BoneIndexArray);
                 }
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.Madden19, ProfileVersion.Fifa17,
-                    ProfileVersion.Fifa18, ProfileVersion.Madden20))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.Madden19 || ProfilesLibrary.DataVersion == (int)ProfileVersion.Fifa17 || ProfilesLibrary.DataVersion == (int)ProfileVersion.Fifa18 || ProfilesLibrary.DataVersion == (int)ProfileVersion.Madden20)
                 {
                     section.BoneIndices.Clear();
                     uint i = 0;
@@ -331,9 +305,7 @@ namespace MeshSetPlugin.Render
                     foreach (uint boneIdx in meshLod.BoneIndexArray)
                     {
                         while (section.BoneIndices.Count <= boneIdx)
-                        {
                             section.BoneIndices.Add(i++);
-                        }
                     }
                 }
             }
@@ -344,30 +316,25 @@ namespace MeshSetPlugin.Render
             ChunkAssetEntry entry = App.AssetManager.GetChunkEntry(meshLod.ChunkId);
             byte[] chunkData = meshLod.InlineData;
             if (entry != null)
-            {
                 chunkData = new NativeReader(App.AssetManager.GetChunk(entry)).ReadToEnd();
-            }
-
             return chunkData;
         }
 
         /// <summary>
         /// Re-organizes the vertices into the fallback shader layout and writes them to the vertex buffer
         /// </summary>
-        private void AssignFallbackVertices(RenderCreateState state, MeshRenderSection section, MeshSetSection meshSection, NativeReader reader, long indexBufferOffset)
+        private unsafe void AssignFallbackVertices(RenderCreateState state, MeshRenderSection section, MeshSetSection meshSection, NativeReader reader, long indexBufferOffset)
         {
             FallbackVertex[] vertices = new FallbackVertex[meshSection.VertexCount];
+            int totalStride = 0;
             bool bitangentSign = false;
-            //bool bRecalculateNormals = ProfilesLibrary.IsLoaded(ProfileVersion.Madden20);
+            //bool bRecalculateNormals = ProfilesLibrary.DataVersion == (int)ProfileVersion.Madden20;
 
             // re-organize vertices into the fallback shader layout
-            for (int i = 0; i < meshSection.GeometryDeclDesc[0].Streams.Length; i++)
+            foreach (GeometryDeclarationDesc.Stream stream in meshSection.GeometryDeclDesc[0].Streams)
             {
-                GeometryDeclarationDesc.Stream stream = meshSection.GeometryDeclDesc[0].Streams[i];
                 if (stream.VertexStride == 0)
-                {
                     continue;
-                }
 
                 for (int v = 0; v < meshSection.VertexCount; v++)
                 {
@@ -377,13 +344,11 @@ namespace MeshSetPlugin.Render
                     foreach (GeometryDeclarationDesc.Element element in meshSection.GeometryDeclDesc[0].Elements)
                     {
                         if (element.Usage == VertexElementUsage.Unknown)
-                        {
                             continue;
-                        }
 
                         //reader.Position = section.VertexOffset + v * section.VertexStride + element.Offset;
 
-                        if (element.StreamIndex == i && currentStride < stream.VertexStride)
+                        if (currentStride >= totalStride && currentStride < (totalStride + stream.VertexStride))
                         {
                             if (element.Usage == VertexElementUsage.Pos)
                             {
@@ -391,9 +356,8 @@ namespace MeshSetPlugin.Render
                                 {
                                     vertex.Position = new Vector3(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat());
                                     if (element.Format == VertexElementFormat.Float4)
-                                    {
                                         reader.ReadFloat();
-                                    }
+
                                 }
                                 else if (element.Format == VertexElementFormat.Half3 || element.Format == VertexElementFormat.Half4)
                                 {
@@ -401,9 +365,7 @@ namespace MeshSetPlugin.Render
                                                                   HalfUtils.Unpack(reader.ReadUShort()),
                                                                   HalfUtils.Unpack(reader.ReadUShort()));
                                     if (element.Format == VertexElementFormat.Half4)
-                                    {
                                         HalfUtils.Unpack(reader.ReadUShort());
-                                    }
                                 }
                             }
                             else if (element.Usage == VertexElementUsage.Normal)
@@ -412,17 +374,13 @@ namespace MeshSetPlugin.Render
                                 {
                                     vertex.Normal = new Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), 1.0f);
                                     if (element.Format == VertexElementFormat.Float4)
-                                    {
                                         vertex.Normal.W = reader.ReadFloat();
-                                    }
                                 }
                                 else if (element.Format == VertexElementFormat.Half3 || element.Format == VertexElementFormat.Half4)
                                 {
                                     vertex.Normal = new Vector4(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), 1.0f);
                                     if (element.Format == VertexElementFormat.Half4)
-                                    {
                                         vertex.Normal.W = HalfUtils.Unpack(reader.ReadUShort());
-                                    }
                                 }
                             }
                             else if (element.Usage == VertexElementUsage.Binormal)
@@ -431,17 +389,13 @@ namespace MeshSetPlugin.Render
                                 {
                                     vertex.Bitangent = new Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), 1.0f);
                                     if (element.Format == VertexElementFormat.Float4)
-                                    {
                                         vertex.Bitangent.W = reader.ReadFloat();
-                                    }
                                 }
                                 else if (element.Format == VertexElementFormat.Half3 || element.Format == VertexElementFormat.Half4)
                                 {
                                     vertex.Bitangent = new Vector4(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), 1.0f);
                                     if (element.Format == VertexElementFormat.Half4)
-                                    {
                                         vertex.Bitangent.W = HalfUtils.Unpack(reader.ReadUShort());
-                                    }
                                 }
                             }
                             else if (element.Usage == VertexElementUsage.Tangent)
@@ -450,17 +404,13 @@ namespace MeshSetPlugin.Render
                                 {
                                     vertex.Tangent = new Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(), 1.0f);
                                     if (element.Format == VertexElementFormat.Float4)
-                                    {
                                         vertex.Tangent.W = reader.ReadFloat();
-                                    }
                                 }
                                 else if (element.Format == VertexElementFormat.Half3 || element.Format == VertexElementFormat.Half4)
                                 {
                                     vertex.Tangent = new Vector4(HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), HalfUtils.Unpack(reader.ReadUShort()), 1.0f);
                                     if (element.Format == VertexElementFormat.Half4)
-                                    {
                                         vertex.Tangent.W = HalfUtils.Unpack(reader.ReadUShort());
-                                    }
                                 }
 
                                 //if (vertex.BitangentSign == 0.0f)
@@ -499,9 +449,7 @@ namespace MeshSetPlugin.Render
                                     vertex.TangentSpace = 1;
                                 }
                                 else
-                                {
                                     vertex.TangentSpace = reader.ReadUInt();
-                                }
                             }
                             else if (element.Usage == VertexElementUsage.TexCoord0)
                             {
@@ -615,25 +563,17 @@ namespace MeshSetPlugin.Render
                                 vertex.BoneWeights7 = reader.ReadByte() / 255.0f;
                             }
                             else
-                            {
                                 reader.Position += element.Size;
-                            }
-
-                            currentStride += element.Size;
                         }
-                    }
 
-                    // rivals pads the vertex stride
-                    if (currentStride != stream.VertexStride)
-                    {
-                        reader.Position += stream.VertexStride - currentStride;
+                        currentStride += element.Size;
                     }
 
                     if (meshLod.Type == MeshType.MeshType_Composite)
                     {
                         vertex.BoneWeights3 = 1.0f;
                     }
-                    else if (meshLod.Type == MeshType.MeshType_Rigid)
+                    else if (meshLod.Type == MeshType.MeshType_Rigid /*|| meshLod.Type == MeshType.MeshType_Composite*/)
                     {
                         vertex.BoneIndices0 = 0;
                         vertex.BoneIndices1 = 0;
@@ -655,15 +595,20 @@ namespace MeshSetPlugin.Render
                     }
 
                     vertices[v] = vertex;
+
+                    if (currentStride < stream.VertexStride)
+                        reader.Position += (stream.VertexStride - currentStride);
                 }
+
+                totalStride += stream.VertexStride;
             }
 
             //if (bRecalculateNormals)
             //{
-            //    reader.Position = indexBufferOffset + (section.StartIndex * ((indexBufferFormat == SharpDX.DXGI.Format.R16_UInt) ? 2 : 4));
+            //    reader.Position = indexBufferOffset + (section.StartIndex * ((indexBufferFormat == Format.R16_UInt) ? 2 : 4));
             //    uint[] indices = new uint[meshSection.PrimitiveCount * 3];
             //    for (int i = 0; i < indices.Length; i++)
-            //        indices[i] = (this.indexBufferFormat == SharpDX.DXGI.Format.R16_UInt) ? reader.ReadUShort() : reader.ReadUInt();
+            //        indices[i] = (this.indexBufferFormat == Format.R16_UInt) ? reader.ReadUShort() : reader.ReadUInt();
 
             //    Vector3[] norm = new Vector3[vertices.Length];
             //    Vector3[] tan1 = new Vector3[vertices.Length];
@@ -726,27 +671,27 @@ namespace MeshSetPlugin.Render
                     Vector3 b = Vector3.Cross(n, t) * vertex.Bitangent.W;
 
                     vertex.Bitangent = new Vector4(b.X, b.Y, b.Z, 1.0f);
-                    vertex.Bitangent.Normalize();
+                    vertex.Bitangent = Vector4.Normalize(vertex.Bitangent);
                     vertices[v] = vertex;
                 }
             }
 
-            section.VertexBuffers = new D3D11.Buffer[1];
-            section.VertexBufferBindings = new D3D11.VertexBufferBinding[1];
+            section.VertexBuffers = new D3D11.ID3D11Buffer[1];
+            section.Strides = new uint[1];
+            section.Offsets = new uint[1];
 
             // write them to the vertex buffer
-            int size = (int)(Utilities.SizeOf<FallbackVertex>() * meshSection.VertexCount);
-            using (DataStream stream = new DataStream(size, false, true))
+            int size = (int)(Marshal.SizeOf<FallbackVertex>() * meshSection.VertexCount);
+            using (Vortice.DataStream stream = new Vortice.DataStream(size, false, true))
             {
                 foreach (FallbackVertex vert in vertices)
-                {
                     stream.Write<FallbackVertex>(vert);
-                }
-
                 stream.Position = 0;
 
-                section.VertexBuffers[0] = new D3D11.Buffer(state.Device, stream, size, D3D11.ResourceUsage.Default, D3D11.BindFlags.VertexBuffer, D3D11.CpuAccessFlags.None, D3D11.ResourceOptionFlags.None, 0);
-                section.VertexBufferBindings[0] = new D3D11.VertexBufferBinding(section.VertexBuffers[0], section.VertexStride, 0);
+                ReadOnlySpan<byte> data = new(stream.BaseUnsafePointer, size);
+                section.VertexBuffers[0] = state.Device.CreateBuffer(data, D3D11.BindFlags.VertexBuffer, D3D11.ResourceUsage.Default, D3D11.CpuAccessFlags.None, D3D11.ResourceOptionFlags.None, structureByteStride: 0);
+                section.Offsets[0] = 0;
+                section.Strides[0] = (uint)(section.VertexStride);
             }
         }
 
@@ -754,11 +699,8 @@ namespace MeshSetPlugin.Render
         {
             foreach (MeshRenderSection section in sections)
             {
-                foreach (D3D11.Buffer vb in section.VertexBuffers)
-                {
+                foreach (D3D11.ID3D11Buffer vb in section.VertexBuffers)
                     vb.Dispose();
-                }
-
                 section.PixelParameters?.Dispose();
                 section.PixelTextures.Clear();
             }

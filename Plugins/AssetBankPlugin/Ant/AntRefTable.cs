@@ -1,8 +1,6 @@
 ﻿using Frosty.Core;
-using Frosty.Core.Controls;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 
 namespace AssetBankPlugin.Ant
 {
@@ -19,47 +17,32 @@ namespace AssetBankPlugin.Ant
             Refs[asset.ID] = asset;
         }
 
+        // Allow the editor to wipe the cache on close
+        public static void Clear()
+        {
+            InternalRefs.Clear();
+            Refs.Clear();
+        }
+
         public static AntAsset Get(Guid refId, bool recurse = false)
         {
-            // Immediately discard Empty GUIDs to prevent unnecessary cache checks.
-            if (refId == Guid.Empty)
-                return null;
-
-            // 1. Primary lookup: try to get the asset directly.
-            if (Refs.TryGetValue(refId, out var asset))
-                return asset;
-
-            // 2. Internal lookup: map the GUID to an internal GUID, then fetch.
+            if (refId == Guid.Empty) return null;
+            if (Refs.TryGetValue(refId, out var asset)) return asset;
             if (InternalRefs.TryGetValue(refId, out var internalId))
             {
                 Refs.TryGetValue(internalId, out var internalAsset);
                 return internalAsset; // null if still not loaded, caller handles it
             }
+            if (recurse) return null;
 
-            // 3. Cache & bundle loading phase.
-            if (recurse)
-                return null;
-
-            int bundleId = -1;
-
-            if (Cache.AntStateBundleIndices.TryGetValue(refId, out int directBundleId))
+            if (!Cache.AntStateBundleIndices.TryGetValue(refId, out int bundleId))
             {
-                bundleId = directBundleId;
-            }
-            else if (Cache.AntRefMap.TryGetValue(refId, out var mappedId) &&
-                     Cache.AntStateBundleIndices.TryGetValue(mappedId, out int mappedBundleId))
-            {
-                bundleId = mappedBundleId;
-            }
-            else
-            {
-                // Unknown GUID - not a critical error, caller will handle null.
-                return null;
+                if (!Cache.AntRefMap.TryGetValue(refId, out var mappedId) ||
+                    !Cache.AntStateBundleIndices.TryGetValue(mappedId, out bundleId))
+                    return null; // Unknown GUID - not a critical error, caller will handle null.
             }
 
-            var bundle = App.AssetManager.GetBundleEntry(bundleId);
-            AntStateAssetDefinition.LoadAntStateFromBundle(bundle);
-
+            AntStateAssetDefinition.LoadAntStateFromBundle(App.AssetManager.GetBundleEntry(bundleId));
             return Get(refId, true);
         }
     }

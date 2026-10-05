@@ -28,9 +28,9 @@ namespace AssetBankPlugin.Render
             return renderSkeleton;
         }
 
-        private static SharpDX.Matrix ToSharpDX(Matrix4x4 m)
+        private static Matrix4x4 ToSharpDX(Matrix4x4 m)
         {
-            return new SharpDX.Matrix(
+            return new Matrix4x4(
                 m.M11, m.M12, m.M13, m.M14,
                 m.M21, m.M22, m.M23, m.M24,
                 m.M31, m.M32, m.M33, m.M34,

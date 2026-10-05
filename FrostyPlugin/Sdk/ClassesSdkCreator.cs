@@ -2,9 +2,14 @@
 using Frosty.Core.Windows;
 using FrostySdk;
 using FrostySdk.Attributes;
+using FrostySdk.BaseProfile;
 using FrostySdk.Ebx;
 using FrostySdk.IO;
 using FrostySdk.Managers;
+using FrostySdk.Managers.Entries;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CSharp;
 using System;
 using System.CodeDom.Compiler;
@@ -13,7 +18,6 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using FrostySdk.Managers.Entries;
 
 namespace Frosty.Core.Sdk
 {
@@ -350,41 +354,53 @@ namespace Frosty.Core.Sdk
             }
             sb.AppendLine("}");
 
-            File.WriteAllText("temp.cs", sb.ToString());
+            /* We'll need to gather the required assemblies first: FrostySdk, mscorlib, System, System.Core, System.Runtime. */
+            const int ASSEMBLIES_COUNT = 5;
+            List<MetadataReference> references = new(ASSEMBLIES_COUNT);
+            references.Add(MetadataReference.CreateFromFile(typeof(BaseBinarySbReader).Assembly.Location));
 
+            /* For the System assemblies, they have no publicly accessible types, so we'll have to fetch them in a different
+             * manner. 
+             */
+            string systemAssembliesPath = Path.GetDirectoryName(typeof(AccessViolationException).Assembly.Location);
 
-            CSharpCodeProvider provider = new CSharpCodeProvider();
+            references.Add(MetadataReference.CreateFromFile(Path.Combine(systemAssembliesPath, "mscorlib.dll")));
+            references.Add(MetadataReference.CreateFromFile(Path.Combine(systemAssembliesPath, "System.dll")));
+            references.Add(MetadataReference.CreateFromFile(Path.Combine(systemAssembliesPath, "System.Core.dll")));
+            references.Add(MetadataReference.CreateFromFile(Path.Combine(systemAssembliesPath, "System.Private.CoreLib.dll")));
+            references.Add(MetadataReference.CreateFromFile(Path.Combine(systemAssembliesPath, "System.Runtime.dll")));
 
-            CompilerParameters compilerParams = new CompilerParameters
+            SyntaxTree syntaxTree = SyntaxFactory.ParseSyntaxTree(sb.ToString(), new CSharpParseOptions().WithPreprocessorSymbols($"DV_{ProfilesLibrary.DataVersion}"));
+
+            CSharpCompilation compilation = CSharpCompilation.Create(Path.GetFileNameWithoutExtension(m_filename))
+                .AddSyntaxTrees(syntaxTree)
+                .AddReferences(references)
+                .WithOptions(new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+            /* Emit the compiled assembly to a stream first, since Roslyn writes out a file regardless of compilation success. */
+            using MemoryStream memoryStream = new();
+
+            EmitResult results = compilation.Emit(memoryStream);
+            File.Delete("temp.cs");
+
+            if (results.Success)
             {
-                GenerateExecutable = false,
-                OutputAssembly = m_filename,
-                CompilerOptions = "-define:DV_" + (int)ProfilesLibrary.DataVersion
-            };
-
-            compilerParams.ReferencedAssemblies.Add("mscorlib.dll");
-            compilerParams.ReferencedAssemblies.Add("FrostySdk.dll");
-
-            CompilerResults results = provider.CompileAssemblyFromFile(compilerParams, "temp.cs");
-
+                using FileStream fileStream = new(m_filename, FileMode.Create, FileAccess.Write, FileShare.None);
+                memoryStream.Position = 0;
+                memoryStream.CopyTo(fileStream);
+            }
 #if FROSTY_ALPHA || FROSTY_DEVELOPER
-            if (results.Errors.Count > 0)
+            else
             {
                 using (NativeWriter writer = new NativeWriter(new FileStream("Errors.txt", FileMode.Create)))
                 {
-                    writer.WriteLine("Compilation Failed:");
-                    foreach (CompilerError error in results.Errors)
+                    foreach (Diagnostic error in results.Diagnostics)
                     {
-                        writer.WriteLine("[Line: " + error.Line + "]: " + error.ErrorText);
+                        writer.WriteLine($"[Line: {error.Location.GetLineSpan().StartLinePosition}]: {error.GetMessage()}");
                     }
-                    writer.WriteLine("Generated sources kept in temp.cs for inspection.");
                 }
             }
-            else
 #endif
-            {
-                if (File.Exists("temp.cs")) File.Delete("temp.cs");
-            }
         }
 
         private string WriteDelegate(DbObject delegateObj)

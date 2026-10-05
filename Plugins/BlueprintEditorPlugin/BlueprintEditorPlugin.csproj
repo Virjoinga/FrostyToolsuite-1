@@ -1,8 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Configurations>Developer - Debug;Release - Final</Configurations>
     <Platforms>x64</Platforms>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <AssemblyTitle>BlueprintEditorPlugin</AssemblyTitle>
     <Product>BlueprintEditorPlugin</Product>
     <Copyright>Copyright ©  2020</Copyright>
@@ -39,28 +39,6 @@
 
   <!-- This item group is for referencing all of the binaries frosty has -->
   <!-- Replace "..\..\1063\" with the directory to your FrostyToolsuite folder -->
-  <ItemGroup>
-	  <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj">
-		  <Private>false</Private>
-	  </ProjectReference>
-	  <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj">
-		  <Private>false</Private>
-	  </ProjectReference>
-    <Reference Include="FrostyEditor">
-      <HintPath>..\..\FrostyEditor\bin\Developer\Debug\FrostyEditor.exe</HintPath>
-    </Reference>
-	  <ProjectReference Include="..\..\FrostyHash\FrostyHash.vcxproj">
-		  <Private>false</Private>
-	  </ProjectReference>
-	  <ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj">
-		  <Private>false</Private>
-	  </ProjectReference>
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
-    <Reference Include="System.Xaml" />
-    <Reference Include="WindowsBase" />
-  </ItemGroup>
 
   <ItemGroup>
     <None Remove="Editors\BlueprintEditor\Nodes\TypeMapping\Configs\AICombatBehaviorEntityData.nmc" />
@@ -191,9 +169,21 @@
     <Folder Include="Views\Themes" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj" />
+    <ProjectReference Include="..\..\FrostyEditor\FrostyEditor.csproj" />
+    <ProjectReference Include="..\..\FrostyHash\FrostyHash.csproj" />
+    <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj" />
+    <ProjectReference Include="..\..\FrostySdk\FrostySdk.csproj" />
+  </ItemGroup>
+
   <!-- This is for copying our binaries into the plugins folder -->
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-		<Exec Command="xcopy /Y $(TargetPath) $(SolutionDir)$(OutDir)Plugins\" />
+		<ItemGroup>
+			<PluginFiles Include="$(TargetDir)$(ProjectName).*" />
+		</ItemGroup>
+
+		<Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(SolutionDir)FrostyEditor\$(OutDir)Plugins\" />
 	</Target>
 
   <PropertyGroup>

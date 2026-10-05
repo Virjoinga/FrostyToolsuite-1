@@ -1,6 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -11,10 +9,12 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>FrostyCmd</RootNamespace>
     <AssemblyName>FrostyCmd</AssemblyName>
-    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <TargetFrameworkProfile />
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release - Final|x64' ">
     <OutputPath>..\FrostyEditor\bin\Release\Final\</OutputPath>
@@ -64,40 +64,30 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+    
+  <ItemDefinitionGroup>
+    <!-- Enable `GeneratePathProperty` for all `PackageReference`s. -->
+    <PackageReference ExcludeAssets="runtime" GeneratePathProperty="true" />
+  </ItemDefinitionGroup>
+    
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Drawing" />
-    <Reference Include="System.Xml.Linq" />
-    <PackageReference Include="SharpDX">
-      <Version>4.2.0</Version>
-    </PackageReference>
-    <PackageReference Include="SharpDX.Mathematics">
-      <Version>4.2.0</Version>
-    </PackageReference>
-    <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <Reference Include="System.Data" />
-    <PackageReference Include="System.Net.Http" Version="4.3.4" />
-    <Reference Include="System.Xml" />
+    <PackageReference Include="Vortice.Mathematics" Version="2.1.0" />
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="ProfileCreator.cs" />
-    <Compile Include="Program.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ShaderBlockDepotDump.cs" />
-    <Compile Include="ShaderDbDump.cs" />
-  </ItemGroup>
+    
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <ItemGroup>
+      <ThirdPartyFolder Include="$(SolutionDir)FrostyEditor\$(OutDir)ThirdParty\" />
+    </ItemGroup>
+      
+    <Copy SourceFiles="$(PkgVortice_Mathematics)\lib\net10.0\Vortice.Mathematics.dll" DestinationFolder="@(ThirdPartyFolder)" />
+  </Target>
+    
   <ItemGroup>
     <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\FrostyHash\FrostyHash.vcxproj">
-      <Project>{d1a29bf8-2e2e-47be-845f-a6dd66d175ba}</Project>
-      <Name>FrostyHash</Name>
-      <Private>False</Private>
-    </ProjectReference>
+    <ProjectReference Include="..\FrostyHash\FrostyHash.csproj" />
     <ProjectReference Include="..\FrostySdk\FrostySdk.csproj">
       <Project>{93fb4a0c-df89-4169-80b5-c4e2277ff7a0}</Project>
       <Name>FrostySdk</Name>
@@ -180,33 +170,6 @@
     <None Include="Banners\SWS.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Banners\bf2042.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Banners\fifa22.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Banners\fifa21.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Banners\fifa23.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Banners\madden22.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Banners\madden23.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Banners\nfsunbound.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Banners\deadspace.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Banners\dragonagetheveilguard.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <Content Include="ThirdParty\libfbxsdk.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -217,7 +180,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

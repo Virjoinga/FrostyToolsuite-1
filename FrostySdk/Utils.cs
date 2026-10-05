@@ -12,6 +12,8 @@ using System.Runtime.InteropServices;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Security.Cryptography;
 using System.Text;
+using MessagePack;
+using MessagePack.Resolvers;
 
 namespace FrostySdk
 {
@@ -778,15 +780,14 @@ namespace FrostySdk
                 {
                     using (MemoryStream ms = new MemoryStream())
                     {
-                        BinaryFormatter formatter = new BinaryFormatter();
-                        formatter.Serialize(ms, type);
+                        MessagePackSerializer.Serialize(type.GetType(), ms, type, ContractlessStandardResolver.Options);
 
                         writer.Write(fileGuid);
                         writer.Write(++createCount);
                         writer.Write(ms.ToArray());
                     }
 
-                    using (MD5 md5 = new MD5CryptoServiceProvider())
+                    using (MD5 md5 = MD5.Create())
                     {
                         outGuid = new Guid(md5.ComputeHash(writer.ToByteArray()));
 

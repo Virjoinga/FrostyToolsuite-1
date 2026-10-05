@@ -1,25 +1,29 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using SharpDX;
-using FrostySdk;
-using SharpDX.Direct3D11;
-using FrostySdk.Managers;
-using FrostySdk.IO;
-using System.IO;
-using System.Xml;
-using D3D11 = SharpDX.Direct3D11;
-using SharpDX.Direct3D;
-using FrostySdk.Ebx;
-using Frosty.Controls;
-using SharpDX.D3DCompiler;
-using System.Collections;
-using FrostySdk.Attributes;
-using System.Windows;
-using System.Globalization;
-using Frosty.Hash;
+﻿using Frosty.Controls;
+using Frosty.Core.Extensions;
 using Frosty.Core.Screens;
+using Frosty.Hash;
+using FrostySdk;
+using FrostySdk.Attributes;
+using FrostySdk.Ebx;
+using FrostySdk.IO;
+using FrostySdk.Managers;
 using FrostySdk.Managers.Entries;
+using SharpGen.Runtime;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Numerics;
+using System.Text;
+using System.Windows;
+using System.Xml;
+using Vortice;
+using Vortice.D3DCompiler;
+using Vortice.Direct3D;
+using Vortice.Direct3D11;
+using Vortice.Mathematics;
+using D3D11 = Vortice.Direct3D11;
 
 namespace Frosty.Core.Viewport
 {
@@ -39,18 +43,18 @@ namespace Frosty.Core.Viewport
             {
                 quotient = (float)((int)(quotient - 0.5f));
             }
-            float y = Value - MathUtil.TwoPi * quotient;
+            float y = Value - MathHelper.TwoPi * quotient;
 
             // Map y to [-pi/2,pi/2] with sin(y) = sin(Value).
             float sign;
-            if (y > MathUtil.PiOverTwo)
+            if (y > MathHelper.PiOver2)
             {
-                y = MathUtil.Pi - y;
+                y = MathHelper.Pi - y;
                 sign = -1.0f;
             }
-            else if (y < -(MathUtil.PiOverTwo))
+            else if (y < -(MathHelper.PiOver2))
             {
-                y = -(MathUtil.Pi) - y;
+                y = -(MathHelper.Pi) - y;
                 sign = -1.0f;
             }
             else
@@ -192,19 +196,19 @@ namespace Frosty.Core.Viewport
         public bool IsTwoSided { get; set; }
         public int MaxBonesPerVertex { get; set; }
 
-        public List<ShaderParameter> VertexParameters = new List<ShaderParameter>();
-        public List<ShaderParameter> VertexTextures = new List<ShaderParameter>();
-        public List<ShaderParameter> PixelParameters = new List<ShaderParameter>();
-        public List<ShaderParameter> PixelTextures = new List<ShaderParameter>();
-        public List<SamplerStateDescription> PixelSamplerDescs = new List<SamplerStateDescription>();
+        public List<ShaderParameter> VertexParameters = new();
+        public List<ShaderParameter> VertexTextures = new();
+        public List<ShaderParameter> PixelParameters = new();
+        public List<ShaderParameter> PixelTextures = new();
+        public List<SamplerDescription> PixelSamplerDescs = new();
 
         public int PixelConstantsSize;
         public int VertexConstantsSize;
 
-        public VertexShader vertexShader;
-        public PixelShader pixelShader;
-        public InputLayout inputLayout;
-        public List<SamplerState> pixelSamplers = new List<SamplerState>();
+        public ID3D11VertexShader vertexShader;
+        public ID3D11PixelShader pixelShader;
+        public ID3D11InputLayout inputLayout;
+        public List<ID3D11SamplerState> pixelSamplers = new();
         public BoneBuffer boneBuffer;
 
         private GeometryDeclarationDesc geomDecl;
@@ -226,7 +230,7 @@ namespace Frosty.Core.Viewport
         /// <summary>
         /// Loads in the necessary shaders and resources
         /// </summary>
-        public bool LoadShaders(Device device)
+        public bool LoadShaders(ID3D11Device device)
         {
             if (vertexShader != null)
                 return true;
@@ -268,36 +272,36 @@ namespace Frosty.Core.Viewport
             if (!bLoaded)
                 return false;
 
-            vertexShader = new VertexShader(device, vsBytecode);
+            vertexShader = device.CreateVertexShader(vsBytecode);
 
             // generate the input layout
-            List<InputElement> elems = new List<InputElement>();
+            List<InputElementDescription> elems = new();
             for (int i = 0; i < geomDecl.ElementCount; i++)
             {
-                SharpDX.DXGI.Format format = SharpDX.DXGI.Format.Unknown;
+                Vortice.DXGI.Format format = Vortice.DXGI.Format.Unknown;
                 switch (geomDecl.Elements[i].Format)
                 {
-                    case VertexElementFormat.Float: format = SharpDX.DXGI.Format.R32_Float; break;
-                    case VertexElementFormat.Float2: format = SharpDX.DXGI.Format.R32G32_Float; break;
-                    case VertexElementFormat.Float3: format = SharpDX.DXGI.Format.R32G32B32_Float; break;
-                    case VertexElementFormat.Float4: format = SharpDX.DXGI.Format.R32G32B32A32_Float; break;
+                    case VertexElementFormat.Float: format = Vortice.DXGI.Format.R32_Float; break;
+                    case VertexElementFormat.Float2: format = Vortice.DXGI.Format.R32G32_Float; break;
+                    case VertexElementFormat.Float3: format = Vortice.DXGI.Format.R32G32B32_Float; break;
+                    case VertexElementFormat.Float4: format = Vortice.DXGI.Format.R32G32B32A32_Float; break;
 
-                    case VertexElementFormat.Half: format = SharpDX.DXGI.Format.R16_Float; break;
-                    case VertexElementFormat.Half2: format = SharpDX.DXGI.Format.R16G16_Float; break;
-                    case VertexElementFormat.Half3: format = SharpDX.DXGI.Format.R16G16B16A16_Float; break;
-                    case VertexElementFormat.Half4: format = SharpDX.DXGI.Format.R16G16B16A16_Float; break;
+                    case VertexElementFormat.Half: format = Vortice.DXGI.Format.R16_Float; break;
+                    case VertexElementFormat.Half2: format = Vortice.DXGI.Format.R16G16_Float; break;
+                    case VertexElementFormat.Half3: format = Vortice.DXGI.Format.R16G16B16A16_Float; break;
+                    case VertexElementFormat.Half4: format = Vortice.DXGI.Format.R16G16B16A16_Float; break;
 
-                    case VertexElementFormat.UByteN: format = SharpDX.DXGI.Format.R8_UInt; break;
-                    case VertexElementFormat.Byte4: format = SharpDX.DXGI.Format.R8G8B8A8_SInt; break;
-                    case VertexElementFormat.Byte4N: format = SharpDX.DXGI.Format.R8G8B8A8_SNorm; break;
-                    case VertexElementFormat.UByte4N: format = SharpDX.DXGI.Format.R8G8B8A8_UNorm; break;
-                    case VertexElementFormat.UByte4: format = SharpDX.DXGI.Format.R8G8B8A8_UInt; break;
+                    case VertexElementFormat.UByteN: format = Vortice.DXGI.Format.R8_UInt; break;
+                    case VertexElementFormat.Byte4: format = Vortice.DXGI.Format.R8G8B8A8_SInt; break;
+                    case VertexElementFormat.Byte4N: format = Vortice.DXGI.Format.R8G8B8A8_SNorm; break;
+                    case VertexElementFormat.UByte4N: format = Vortice.DXGI.Format.R8G8B8A8_UNorm; break;
+                    case VertexElementFormat.UByte4: format = Vortice.DXGI.Format.R8G8B8A8_UInt; break;
 
-                    case VertexElementFormat.Short2N: format = SharpDX.DXGI.Format.R16G16_SNorm; break;
-                    case VertexElementFormat.UShort4: format = SharpDX.DXGI.Format.R16G16B16A16_UInt; break;
-                    case VertexElementFormat.Short4: format = SharpDX.DXGI.Format.R16G16B16A16_SInt; break;
-                    case VertexElementFormat.Short4N: format = SharpDX.DXGI.Format.R16G16B16A16_SNorm; break;
-                    case VertexElementFormat.UInt: format = SharpDX.DXGI.Format.R32_UInt; break;
+                    case VertexElementFormat.Short2N: format = Vortice.DXGI.Format.R16G16_SNorm; break;
+                    case VertexElementFormat.UShort4: format = Vortice.DXGI.Format.R16G16B16A16_UInt; break;
+                    case VertexElementFormat.Short4: format = Vortice.DXGI.Format.R16G16B16A16_SInt; break;
+                    case VertexElementFormat.Short4N: format = Vortice.DXGI.Format.R16G16B16A16_SNorm; break;
+                    case VertexElementFormat.UInt: format = Vortice.DXGI.Format.R32_UInt; break;
                 }
 
                 int index = 0;
@@ -319,13 +323,13 @@ namespace Frosty.Core.Viewport
                     semanticName = semanticName.Remove(semanticName.Length - 1, 1);
                 }
 
-                elems.Add(new InputElement(semanticName, index, format, geomDecl.Elements[i].Offset, geomDecl.Elements[i].StreamIndex, InputClassification.PerVertexData, 0));
+                elems.Add(new InputElementDescription(semanticName, (uint)(index), format, geomDecl.Elements[i].Offset, geomDecl.Elements[i].StreamIndex, InputClassification.PerVertexData, 0));
             }
-            inputLayout = new InputLayout(device, vsBytecode, elems.ToArray());
-            pixelShader = new PixelShader(device, psBytecode);
+            inputLayout = device.CreateInputLayout(elems.ToArray(), vsBytecode);
+            pixelShader = device.CreatePixelShader(psBytecode);
 
             // create any samplers
-            foreach (SamplerStateDescription desc in PixelSamplerDescs)
+            foreach (SamplerDescription desc in PixelSamplerDescs)
                 pixelSamplers.Add(D3DUtils.CreateSamplerState(desc));
 
             if (IsSkinned)
@@ -340,33 +344,33 @@ namespace Frosty.Core.Viewport
         /// <summary>
         /// Sets up the render state for this permutation
         /// </summary>
-        public void SetState(DeviceContext context, MeshRenderPath renderPath)
+        public void SetState(ID3D11DeviceContext context, MeshRenderPath renderPath)
         {
-            context.VertexShader.Set(vertexShader);
-            context.InputAssembler.InputLayout = inputLayout;
+            context.VSSetShader(vertexShader);
+            context.IASetInputLayout(inputLayout);
 
             if (IsSkinned)
-                context.VertexShader.SetShaderResources(0, boneBuffer.SRV);
+                context.VSSetShaderResource(0, boneBuffer.SRV);
 
             if (renderPath != MeshRenderPath.Shadows)
             {
-                context.PixelShader.Set(pixelShader);
-                context.PixelShader.SetSamplers(1, pixelSamplers.ToArray());
+                context.PSSetShader(pixelShader);
+                context.PSSetSamplers(1, pixelSamplers.ToArray());
 
                 if (IsTwoSided)
-                    context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                    context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
             }
             else
             {
-                context.PixelShader.Set(null);
-                context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.None);
+                context.PSSetShader(null);
+                context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.None));
             }
         }
 
         /// <summary>
         /// Assigns only the shaders default parameter values
         /// </summary>
-        public void AssignParameters(RenderCreateState state, ref D3D11.Buffer pixelParameters, ref List<ShaderResourceView> pixelTextures)
+        public void AssignParameters(RenderCreateState state, ref D3D11.ID3D11Buffer pixelParameters, ref List<ID3D11ShaderResourceView> pixelTextures)
         {
             AssignParameters(state, new List<ShaderParameter>(), new List<ShaderParameter>(), ref pixelParameters, ref pixelTextures);
         }
@@ -374,7 +378,7 @@ namespace Frosty.Core.Viewport
         /// <summary>
         /// Assigns the shader parameters from the provided lists
         /// </summary>
-        public void AssignParameters(RenderCreateState state, List<ShaderParameter> pixelParamValues, List<ShaderParameter> pixelTextureValues, ref D3D11.Buffer pixelParameters, ref List<ShaderResourceView> pixelTextures)
+        public unsafe void AssignParameters(RenderCreateState state, List<ShaderParameter> pixelParamValues, List<ShaderParameter> pixelTextureValues, ref D3D11.ID3D11Buffer pixelParameters, ref List<ID3D11ShaderResourceView> pixelTextures)
         {
             if (pixelParameters != null)
             {
@@ -387,7 +391,7 @@ namespace Frosty.Core.Viewport
 
             if (size > 0)
             {
-                using (DataStream stream = new DataStream(size, false, true))
+                using (Vortice.DataStream stream = new Vortice.DataStream(size, false, true))
                 {
                     foreach (ShaderParameter param in PixelParameters)
                     {
@@ -401,18 +405,19 @@ namespace Frosty.Core.Viewport
                     }
 
                     stream.Position = 0;
-                    pixelParameters = new D3D11.Buffer(state.Device, stream, size, ResourceUsage.Default, BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
 
+                    ReadOnlySpan<byte> data = new(stream.BaseUnsafePointer, size);
+                    pixelParameters = state.Device.CreateBuffer(data, BindFlags.ConstantBuffer, ResourceUsage.Default, CpuAccessFlags.None, ResourceOptionFlags.None, structureByteStride: 0);
                 }
             }
 
-            ShaderResourceView[] srvs = pixelTextures.ToArray();
+            ID3D11ShaderResourceView[] srvs = pixelTextures.ToArray();
             pixelTextures.Clear();
 
             foreach (ShaderParameter param in PixelTextures)
             {
                 ShaderParameter texParam = pixelTextureValues.Find((ShaderParameter a) => a.Name == param.Name);
-                ShaderResourceView srv = null;
+                ID3D11ShaderResourceView srv = null;
 
                 if (texParam == null)
                     texParam = param;
@@ -435,7 +440,7 @@ namespace Frosty.Core.Viewport
         /// <summary>
         /// Assigns the shader parameters from the provided material
         /// </summary>
-        public void AssignParameters(RenderCreateState state, MeshMaterial material, ref D3D11.Buffer pixelParameters, ref List<ShaderResourceView> pixelTextures)
+        public unsafe void AssignParameters(RenderCreateState state, MeshMaterial material, ref D3D11.ID3D11Buffer pixelParameters, ref List<ID3D11ShaderResourceView> pixelTextures)
         {
             if (pixelParameters != null)
             {
@@ -448,7 +453,7 @@ namespace Frosty.Core.Viewport
 
             if (size > 0)
             {
-                using (DataStream stream = new DataStream(size, false, true))
+                using (Vortice.DataStream stream = new Vortice.DataStream(size, false, true))
                 {
                     foreach (ShaderParameter param in PixelParameters)
                     {
@@ -471,12 +476,12 @@ namespace Frosty.Core.Viewport
                     }
 
                     stream.Position = 0;
-                    pixelParameters = new D3D11.Buffer(state.Device, stream, size, ResourceUsage.Default, BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
-
+                    ReadOnlySpan<byte> data = new(stream.BaseUnsafePointer, size);
+                    pixelParameters = state.Device.CreateBuffer(data, BindFlags.ConstantBuffer, ResourceUsage.Default, CpuAccessFlags.None, ResourceOptionFlags.None, structureByteStride: 0);
                 }
             }
 
-            ShaderResourceView[] srvs = pixelTextures.ToArray();
+            ID3D11ShaderResourceView[] srvs = pixelTextures.ToArray();
             pixelTextures.Clear();
 
             foreach (ShaderParameter param in PixelTextures)
@@ -495,7 +500,7 @@ namespace Frosty.Core.Viewport
                     return paramName.Equals(param.Name, StringComparison.OrdinalIgnoreCase);
 
                 });
-                ShaderResourceView srv = null;
+                ID3D11ShaderResourceView srv = null;
 
                 if (texParam != null)
                 {
@@ -519,7 +524,7 @@ namespace Frosty.Core.Viewport
         /// NOTE: Use of dynamic here as MeshRenderSection exists in the MeshSet plugin, however the fallback shader requires the MeshRenderSection
         ///       to populate the parameters correctly
         /// </summary>
-        public void AssignFallbackParameters(RenderCreateState state, /*MeshRenderSection*/ dynamic section, MeshMaterial material)
+        public unsafe void AssignFallbackParameters(RenderCreateState state, /*MeshRenderSection*/ dynamic section, MeshMaterial material)
         {
             float CustomParam1 = 0.0f;
             float CustomParam2 = 0.0f;
@@ -531,7 +536,7 @@ namespace Frosty.Core.Viewport
             Vector4 TintColorD = (ProfilesLibrary.DataVersion == (int)ProfileVersion.MirrorsEdgeCatalyst) ? Vector4.UnitW : Vector4.One;
 
             List<Vector4> AdditionalParams = new List<Vector4>();
-            List<ShaderResourceView> AdditionalTextures = new List<ShaderResourceView>();
+            List<ID3D11ShaderResourceView> AdditionalTextures = new();
 
             if (ProfilesLibrary.DataVersion == (int)ProfileVersion.StarWarsBattlefrontII || ProfilesLibrary.DataVersion == (int)ProfileVersion.StarWarsSquadrons)
             {
@@ -590,7 +595,7 @@ namespace Frosty.Core.Viewport
 
                     // MEA Only
                     else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.MassEffectAndromeda)
-                    { 
+                    {
                         if (paramName.Equals("MP_Light", StringComparison.OrdinalIgnoreCase))
                         {
                             Vector4 v = AdditionalParams[0];
@@ -615,7 +620,7 @@ namespace Frosty.Core.Viewport
                     // MEC
                     if (paramName.Equals("DiffuseColor", StringComparison.OrdinalIgnoreCase))
                     {
-                        TintColorA = new SharpDX.Vector4(
+                        TintColorA = new Vector4(
                             vectorParam.Value.x, vectorParam.Value.y, vectorParam.Value.z, 0.0f
                             );
                         TintColorB.Z = 1.0f;
@@ -678,10 +683,10 @@ namespace Frosty.Core.Viewport
             if (shaderAsset == null)
                 return;
 
-            ShaderResourceView DiffuseTexture = null;
-            ShaderResourceView NormTexture = null;
-            ShaderResourceView MaskTexture = null;
-            ShaderResourceView TintTexture = null;
+            ID3D11ShaderResourceView DiffuseTexture = null;
+            ID3D11ShaderResourceView NormTexture = null;
+            ID3D11ShaderResourceView MaskTexture = null;
+            ID3D11ShaderResourceView TintTexture = null;
 
             // texture params
             foreach (dynamic textureParam in material.TextureParameters)
@@ -690,13 +695,13 @@ namespace Frosty.Core.Viewport
                 PointerRef value = textureParam.Value;
 
                 // MEA
-                if (ProfilesLibrary.IsLoaded(ProfileVersion.MassEffectAndromeda))
+                if (ProfilesLibrary.DataVersion == (int)ProfileVersion.MassEffectAndromeda)
                 {
                     if (paramName.Equals("Diffuse") || paramName.Equals("BaseColor") || paramName.Equals("diff_mean")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
                     else if (paramName.Equals("Norm") || paramName.Equals("Normal") || paramName.Equals("norm_mean"))
                     {
                         NormTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid);
-                        if (NormTexture != null && NormTexture.Description.Format == SharpDX.DXGI.Format.BC5_UNorm)
+                        if (NormTexture != null && NormTexture.Description.Format == Vortice.DXGI.Format.BC5_UNorm)
                             CustomParam2 = 1;
                     }
                     else if (paramName.Equals("Tint") || paramName.Equals("Tint_Mask"))
@@ -720,7 +725,7 @@ namespace Frosty.Core.Viewport
                 }
 
                 // MEC
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.MirrorsEdgeCatalyst))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.MirrorsEdgeCatalyst)
                 {
                     if (paramName.StartsWith("Diffuse")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); TintColorA.W = 1.0f; }
                     else if (paramName.StartsWith("Normal")) { NormTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
@@ -740,7 +745,7 @@ namespace Frosty.Core.Viewport
                 }
 
                 // SWBF
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.StarWarsBattlefront))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.StarWarsBattlefront)
                 {
                     paramName = paramName.ToLower();
                     if (shaderAsset != null)
@@ -758,7 +763,7 @@ namespace Frosty.Core.Viewport
                         NormTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid);
                         if (NormTexture != null)
                         {
-                            if (NormTexture.Description.Format == SharpDX.DXGI.Format.BC5_UNorm)
+                            if (NormTexture.Description.Format == Vortice.DXGI.Format.BC5_UNorm)
                                 CustomParam2 = 1;
                             else
                             {
@@ -809,10 +814,7 @@ namespace Frosty.Core.Viewport
                 }
 
                 // Fifa
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.Fifa17, ProfileVersion.Fifa18,
-                    ProfileVersion.Fifa19, ProfileVersion.Fifa20,
-                    ProfileVersion.NeedForSpeedHeat, ProfileVersion.Fifa21,
-                    ProfileVersion.Fifa22, ProfileVersion.NeedForSpeedUnbound, ProfileVersion.DeadSpace, ProfileVersion.DragonAgeVeilguard))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.Fifa17 || ProfilesLibrary.DataVersion == (int)ProfileVersion.Fifa18 || ProfilesLibrary.DataVersion == (int)ProfileVersion.Fifa19 || ProfilesLibrary.DataVersion == (int)ProfileVersion.Fifa20 || ProfilesLibrary.DataVersion == (int)ProfileVersion.NeedForSpeedHeat)
                 {
                     paramName = paramName.ToLower();
                     if (paramName.StartsWith("colortexture") || paramName.StartsWith("diffuse") || paramName.Contains("basecolor"))
@@ -845,7 +847,7 @@ namespace Frosty.Core.Viewport
                 }
 
                 // Madden
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.Madden19, ProfileVersion.Madden20, ProfileVersion.Madden21, ProfileVersion.Madden22, ProfileVersion.Madden23))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.Madden19 || ProfilesLibrary.DataVersion == (int)ProfileVersion.Madden20)
                 {
                     paramName = paramName.ToLower();
                     if (paramName.StartsWith("colortexture")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
@@ -871,14 +873,14 @@ namespace Frosty.Core.Viewport
                 }
 
                 // BF1
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.Battlefield1))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.Battlefield1)
                 {
                     if (paramName.StartsWith("BaseColor") || paramName.StartsWith("Diffuse")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
                     else if (paramName.Equals("Normal")) { NormTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
                 }
 
                 // SWBF2
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.StarWarsBattlefrontII, ProfileVersion.StarWarsSquadrons))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.StarWarsBattlefrontII || ProfilesLibrary.DataVersion == (int)ProfileVersion.StarWarsSquadrons)
                 {
                     string shaderFilename = (shaderAsset != null) ? shaderAsset.Filename.ToLower() : "";
                     if (shaderFilename.Contains("2uv") || shaderFilename.Contains("ss_vehicle") || shaderFilename.Contains("ss_weapons") || shaderFilename.Contains("ss_propspreset"))
@@ -949,7 +951,7 @@ namespace Frosty.Core.Viewport
                     }
                     else if (paramName.Equals("Markings_Texture") || paramName.Equals("Markings_Texture2") || paramName.Equals("Markings_CamoTexture"))
                     {
-                        ShaderResourceView srv = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid);
+                        ID3D11ShaderResourceView srv = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid);
                         if (paramName.Equals("Markings_Texture")) { AdditionalTextures[0] = srv; TintColorA.X = 1.0f; }
                         else if (paramName.Equals("Markings_Texture2")) { AdditionalTextures[1] = srv; TintColorA.Y = 1.0f; }
                         else { AdditionalTextures[2] = srv; }
@@ -966,7 +968,7 @@ namespace Frosty.Core.Viewport
                 }
 
                 // PVZ2
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.PlantsVsZombiesGardenWarfare2))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.PlantsVsZombiesGardenWarfare2)
                 {
                     if (paramName.Contains("Diffuse") || paramName.Contains("Color")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
                     else if (paramName.Contains("Normal")) { NormTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
@@ -974,7 +976,7 @@ namespace Frosty.Core.Viewport
                 }
 
                 // PVZ
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.PlantsVsZombiesGardenWarfare))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.PlantsVsZombiesGardenWarfare)
                 {
                     paramName = paramName.ToLower();
                     if (paramName.Equals("diffuse")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
@@ -983,7 +985,7 @@ namespace Frosty.Core.Viewport
                 }
 
                 // DAI/BF4
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.DragonAgeInquisition, ProfileVersion.Battlefield4))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.DragonAgeInquisition || ProfilesLibrary.DataVersion == (int)ProfileVersion.Battlefield4)
                 {
                     paramName = paramName.ToLower();
                     if (paramName.Equals("diffuse") || paramName.Equals("d1_diffuse") || paramName.Equals("diffuse_alpha")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
@@ -1000,7 +1002,7 @@ namespace Frosty.Core.Viewport
                 }
 
                 // NFS Payback
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.NeedForSpeedPayback))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.NeedForSpeedPayback)
                 {
                     paramName = paramName.ToLower();
                     if (paramName.StartsWith("color") || paramName.Contains("diffuse")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
@@ -1009,7 +1011,7 @@ namespace Frosty.Core.Viewport
                 }
 
                 // Anthem
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.Anthem))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.Anthem)
                 {
                     if (paramName.Contains("Diffuse") || paramName.Contains("BaseColor")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
                     else if (paramName.Contains("Normal")) { NormTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
@@ -1017,7 +1019,7 @@ namespace Frosty.Core.Viewport
                 }
 
                 // BFV
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.Battlefield5))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.Battlefield5)
                 {
                     if (paramName.Contains("BaseColor")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
                     else if (paramName.Contains("Normal"))
@@ -1031,42 +1033,18 @@ namespace Frosty.Core.Viewport
                 }
 
                 // NFS14
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.NeedForSpeedRivals))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.NeedForSpeedRivals)
                 {
                     if (paramName.Contains("Diffuse")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
                     else if (paramName.Contains("Normal")) { NormTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
                 }
 
                 // PVZ3
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.PlantsVsZombiesBattleforNeighborville))
+                else if (ProfilesLibrary.DataVersion == (int)ProfileVersion.PlantsVsZombiesBattleforNeighborville)
                 {
                     paramName = paramName.ToLower();
                     if (paramName.Contains("color")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
                     else if (paramName.Contains("normal")) { NormTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
-                }
-
-                else if (ProfilesLibrary.IsLoaded(ProfileVersion.Battlefield2042))
-                {
-                    if (paramName.StartsWith("_CS") || paramName.Contains("Color")) { DiffuseTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid); }
-                    else if (paramName.Contains("NX") || paramName.Contains("NMT") || paramName.Contains("Normal"))
-                    {
-                        EbxAssetEntry entry = App.AssetManager.GetEbxEntry(value.External.FileGuid);
-                        if (entry != null)
-                        {
-                            string filename = entry.Filename;
-
-                            if (filename.EndsWith("NMT"))
-                            {
-                                CustomParam1 = 1;
-                            }
-                            else if (filename.Contains("NX"))
-                            {
-                                CustomParam1 = 3;
-                                CustomParam2 = 2;
-                            }
-                        }
-                        NormTexture = state.TextureLibrary.LoadTextureAsset(value.External.FileGuid);
-                    }
                 }
 
                 // Anything else
@@ -1094,7 +1072,7 @@ namespace Frosty.Core.Viewport
                 MaskTexture = state.TextureLibrary.LoadTextureAsset(App.AssetManager.GetEbxEntry(ProfilesLibrary.DefaultMask).Guid);
             }
 
-            if (ProfilesLibrary.IsLoaded(ProfileVersion.NeedForSpeedHeat, ProfileVersion.NeedForSpeedUnbound))
+            if (ProfilesLibrary.DataVersion == (int)ProfileVersion.NeedForSpeedHeat)
             {
                 bool tangentSpace = false;
                 foreach (var elem in section.MeshSection.GeometryDeclDesc[0].Elements)
@@ -1114,9 +1092,9 @@ namespace Frosty.Core.Viewport
 
             // handle SRGB switch
             if (DiffuseTexture != null)
-                SRGB = SharpDX.DXGI.FormatHelper.IsSRgb(DiffuseTexture.Description.Format) ? 1.0f : 0.0f;
+                SRGB = Vortice.DXGI.FormatHelper.IsSRGB(DiffuseTexture.Description.Format) ? 1.0f : 0.0f;
 
-            ShaderResourceView[] srvs = section.PixelTextures.ToArray();
+            ID3D11ShaderResourceView[] srvs = section.PixelTextures.ToArray();
 
             section.PixelTextures.Clear();
             section.PixelTextures.Add(DiffuseTexture);
@@ -1150,28 +1128,32 @@ namespace Frosty.Core.Viewport
                 while (writer.Position < size)
                     writer.Write((byte)0x00);
 
-                outData = writer.ToByteArray();;
+                outData = writer.ToByteArray();
             }
 
-            if (section.PixelParameters != null && size == section.PixelParameters.Description.SizeInBytes)
+            if (section.PixelParameters != null && size == section.PixelParameters.Description.ByteWidth)
             {
-                DeviceContext context = state.Device.ImmediateContext;
+                ID3D11DeviceContext context = state.Device.ImmediateContext;
 
-                context.MapSubresource(section.PixelParameters, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+                context.Map(section.PixelParameters, 0, MapMode.WriteDiscard, MapFlags.None, out MappedSubresource mappedResource);
+                using Vortice.DataStream stream = new(mappedResource.DataPointer, section.PixelParameters.Description.ByteWidth, true, true);
+
                 stream.Write(outData, 0, outData.Length);
-                context.UnmapSubresource(section.PixelParameters, 0);
+                context.Unmap(section.PixelParameters, 0);
             }
             else
             {
-                using (DataStream stream = new DataStream(size, false, true))
+                using (Vortice.DataStream stream = new Vortice.DataStream(size, false, true))
                 {
                     stream.Write(outData, 0, outData.Length);
                     stream.Position = 0;
 
                     if (section.PixelParameters != null)
                         section.PixelParameters.Dispose();
-                    section.PixelParameters = new D3D11.Buffer(state.Device, stream, size, ResourceUsage.Dynamic, BindFlags.ConstantBuffer,
-                        CpuAccessFlags.Write, ResourceOptionFlags.None, 0);
+
+                    ReadOnlySpan<byte> data = new(stream.BaseUnsafePointer, size);
+                    section.PixelParameters = state.Device.CreateBuffer(data, BindFlags.ConstantBuffer, ResourceUsage.Dynamic,
+                        CpuAccessFlags.Write, ResourceOptionFlags.None, structureByteStride: 0);
                 }
             }
 
@@ -1181,29 +1163,29 @@ namespace Frosty.Core.Viewport
         /// <summary>
         /// Creates the mandatory fallback shader to be used where a custom shader is not provided
         /// </summary>
-        public static ShaderPermutation CreateFallback(Device device, Shader inParent)
+        public static ShaderPermutation CreateFallback(ID3D11Device device, Shader inParent)
         {
             ShaderPermutation perm = new ShaderPermutation(inParent);
 
-            perm.vertexShader = FrostyShaderDb.GetShaderWithSignature<VertexShader>(device, ((int)ProfilesLibrary.DataVersion).ToString(), out ShaderSignature signature);
-            perm.pixelShader = FrostyShaderDb.GetShader<PixelShader>(device, ((int)ProfilesLibrary.DataVersion).ToString());
-            perm.inputLayout = new InputLayout(device, signature.Data, new InputElement[]
+            perm.vertexShader = FrostyShaderDb.GetShaderWithSignature<ID3D11VertexShader>(device, ((int)ProfilesLibrary.DataVersion).ToString(), out byte[] signature);
+            perm.pixelShader = FrostyShaderDb.GetShader<ID3D11PixelShader>(device, ((int)ProfilesLibrary.DataVersion).ToString());
+            perm.inputLayout = device.CreateInputLayout(new InputElementDescription[]
             {
-                new InputElement("POSITION", 0, SharpDX.DXGI.Format.R32G32B32_Float, 0),
-                new InputElement("NORMAL", 0, SharpDX.DXGI.Format.R32G32B32A32_Float, 0),
-                new InputElement("TANGENT", 0, SharpDX.DXGI.Format.R32G32B32A32_Float, 0),
-                new InputElement("BINORMAL", 0, SharpDX.DXGI.Format.R32G32B32A32_Float, 0),
-                new InputElement("TEXCOORD", 0, SharpDX.DXGI.Format.R32G32_Float, 0),
-                new InputElement("TEXCOORD", 1, SharpDX.DXGI.Format.R32G32_Float, 0),
-                new InputElement("TEXCOORD", 2, SharpDX.DXGI.Format.R32G32_Float, 0),
-                new InputElement("COLOR", 0, SharpDX.DXGI.Format.R32G32B32A32_Float, 0),
-                new InputElement("COLOR", 1, SharpDX.DXGI.Format.R32G32B32A32_Float, 0),
-                new InputElement("BLENDINDICES", 0, SharpDX.DXGI.Format.R32G32B32A32_UInt, 0),
-                new InputElement("BLENDINDICES", 1, SharpDX.DXGI.Format.R32G32B32A32_UInt, 0),
-                new InputElement("BLENDWEIGHT", 0, SharpDX.DXGI.Format.R32G32B32A32_Float, 0),
-                new InputElement("BLENDWEIGHT", 1, SharpDX.DXGI.Format.R32G32B32A32_Float, 0),
-                new InputElement("TANGENTSPACE", 0, SharpDX.DXGI.Format.R32_UInt, 0)
-            });
+                new InputElementDescription("POSITION", 0, Vortice.DXGI.Format.R32G32B32_Float, 0),
+                new InputElementDescription("NORMAL", 0, Vortice.DXGI.Format.R32G32B32A32_Float, 0),
+                new InputElementDescription("TANGENT", 0, Vortice.DXGI.Format.R32G32B32A32_Float, 0),
+                new InputElementDescription("BINORMAL", 0, Vortice.DXGI.Format.R32G32B32A32_Float, 0),
+                new InputElementDescription("TEXCOORD", 0, Vortice.DXGI.Format.R32G32_Float, 0),
+                new InputElementDescription("TEXCOORD", 1, Vortice.DXGI.Format.R32G32_Float, 0),
+                new InputElementDescription("TEXCOORD", 2, Vortice.DXGI.Format.R32G32_Float, 0),
+                new InputElementDescription("COLOR", 0, Vortice.DXGI.Format.R32G32B32A32_Float, 0),
+                new InputElementDescription("COLOR", 1, Vortice.DXGI.Format.R32G32B32A32_Float, 0),
+                new InputElementDescription("BLENDINDICES", 0, Vortice.DXGI.Format.R32G32B32A32_UInt, 0),
+                new InputElementDescription("BLENDINDICES", 1, Vortice.DXGI.Format.R32G32B32A32_UInt, 0),
+                new InputElementDescription("BLENDWEIGHT", 0, Vortice.DXGI.Format.R32G32B32A32_Float, 0),
+                new InputElementDescription("BLENDWEIGHT", 1, Vortice.DXGI.Format.R32G32B32A32_Float, 0),
+                new InputElementDescription("TANGENTSPACE", 0, Vortice.DXGI.Format.R32_UInt, 0)
+            }, signature);
             perm.IsFallback = true;
             perm.IsSkinned = true;
 
@@ -1373,18 +1355,18 @@ namespace Frosty.Core.Viewport
                             if (samplerNode.Attributes["minLod"] != null) minLod = float.Parse(samplerNode.Attributes["minLod"].Value, ci);
                             if (samplerNode.Attributes["maxLod"] != null) maxLod = float.Parse(samplerNode.Attributes["maxLod"].Value, ci);
 
-                            SamplerStateDescription desc = new SamplerStateDescription()
+                            SamplerDescription desc = new()
                             {
                                 Filter = filter,
                                 AddressU = addressU,
                                 AddressV = addressV,
                                 AddressW = addressW,
-                                MipLodBias = mipLodBias,
-                                MaximumAnisotropy = maxAniso,
-                                MinimumLod = minLod,
-                                MaximumLod = maxLod,
+                                MipLODBias = mipLodBias,
+                                MaxAnisotropy = (uint)(maxAniso),
+                                MinLOD = minLod,
+                                MaxLOD = maxLod,
                                 BorderColor = new Color4(0, 0, 0, 0),
-                                ComparisonFunction = Comparison.Always
+                                ComparisonFunc = ComparisonFunction.Always
                             };
 
                             shaderPerm.PixelSamplerDescs.Add(desc);
@@ -1409,7 +1391,7 @@ namespace Frosty.Core.Viewport
                                 case ShaderParameterType.Float: defValue = "0"; break;
                                 case ShaderParameterType.Float2: defValue = "0,0"; break;
                                 case ShaderParameterType.Float3: defValue = "0,0,0"; break;
-                                case ShaderParameterType.Float4: defValue = "0,0,0,0";  break;
+                                case ShaderParameterType.Float4: defValue = "0,0,0,0"; break;
                             }
 
                             if (paramNode.Attributes["defaultValue"] != null)
@@ -1510,7 +1492,7 @@ namespace Frosty.Core.Viewport
 
                                 // now compile
                                 List<ShaderMacro> macros = new List<ShaderMacro>();
-                                CompilationResult result = null;
+                                ReadOnlyMemory<byte> result = null;
 
                                 macros.Add(new ShaderMacro(permutation.Name, null));
                                 if (permutation.IsSkinned)
@@ -1524,29 +1506,29 @@ namespace Frosty.Core.Viewport
                                 byte[] psBytecode = null;
 
                                 // try to compile the vertex shader
-                                result = ShaderBytecode.Compile(shaderCode, "VSMain", "vs_5_0", ShaderFlags.None, EffectFlags.None, macros.ToArray(), new ShaderIncludeHandler());
-                                if (result.Bytecode == null)
+                                try
+                                {
+                                    result = Compiler.Compile(shaderCode, macros.ToArray(), new ShaderIncludeHandler(), "VSMain", "unknown", "vs_5_0", ShaderFlags.None, EffectFlags.None);
+                                    vsBytecode = result.ToArray();
+                                }
+                                catch (SharpGenException exception)
                                 {
                                     failed = true;
-                                    errorString = string.Format("Failed to compile the specified shader.\r\n\r\nShader: {0}\r\nPermutation: {1}\r\n\r\nWould you like to retry?\r\n\r\n{2}", filename, permutation.Name, result.Message);
-                                }
-                                else
-                                {
-                                    vsBytecode = result.Bytecode;
+                                    errorString = string.Format("Failed to compile the specified shader.\r\n\r\nShader: {0}\r\nPermutation: {1}\r\n\r\nWould you like to retry?\r\n\r\n{2}", filename, permutation.Name, exception.Message);
                                 }
 
                                 if (!failed)
                                 {
                                     // now try to compile the pixel shader
-                                    result = ShaderBytecode.Compile(shaderCode, "PSMain", "ps_5_0", ShaderFlags.None, EffectFlags.None, macros.ToArray(), new ShaderIncludeHandler());
-                                    if (result.Bytecode == null)
+                                    try
+                                    {
+                                        result = Compiler.Compile(shaderCode, macros.ToArray(), new ShaderIncludeHandler(), "PSMain", "unknown", "ps_5_0", ShaderFlags.None, EffectFlags.None);
+                                        psBytecode = result.ToArray();
+                                    }
+                                    catch (SharpGenException exception)
                                     {
                                         failed = true;
-                                        errorString = string.Format("Failed to compile the specified shader.\r\n\r\nShader: {0}\r\nPermutation: {1}\r\n\r\nWould you like to retry?\r\n\r\n{2}", filename, permutation.Name, result.Message);
-                                    }
-                                    else
-                                    {
-                                        psBytecode = result.Bytecode;
+                                        errorString = string.Format("Failed to compile the specified shader.\r\n\r\nShader: {0}\r\nPermutation: {1}\r\n\r\nWould you like to retry?\r\n\r\n{2}", filename, permutation.Name, exception.Message);
                                     }
                                 }
 
@@ -1646,7 +1628,7 @@ namespace Frosty.Core.Viewport
                 foreach (ShaderParameter param in permutation.PixelTextures)
                 {
                     string textureFormat = "";
-                    switch(param.Type)
+                    switch (param.Type)
                     {
                         case ShaderParameterType.Tex2d: textureFormat = "Texture2D"; break;
                         case ShaderParameterType.Tex2dArray: textureFormat = "Texture2DArray"; break;
@@ -1718,7 +1700,7 @@ namespace Frosty.Core.Viewport
                 geomDecl.Streams[elem.StreamIndex].VertexStride += (byte)elem.Size;
 
                 if (elem.StreamIndex > geomDecl.StreamCount - 1)
-                    geomDecl.StreamCount = (byte)(elem.StreamIndex + 1);                
+                    geomDecl.StreamCount = (byte)(elem.StreamIndex + 1);
             }
 
             ShaderPermutation permutation = new ShaderPermutation(perm, geomDecl, filename, this);
@@ -1729,7 +1711,7 @@ namespace Frosty.Core.Viewport
             return permutation;
         }
 
-        public static Shader CreateFallback(Device device)
+        public static Shader CreateFallback(ID3D11Device device)
         {
             Shader shader = new Shader();
             shader.permutations.Add(0, ShaderPermutation.CreateFallback(device, shader));
@@ -1747,11 +1729,11 @@ namespace Frosty.Core.Viewport
     #region -- Meshes --
     public class RenderCreateState
     {
-        public Device Device { get; private set; }
+        public ID3D11Device Device { get; private set; }
         public TextureLibrary TextureLibrary { get; private set; }
         public ShaderLibrary ShaderLibrary { get; private set; }
 
-        public RenderCreateState(Device inDevice, TextureLibrary inTextureLibrary, ShaderLibrary inShaderLibrary)
+        public RenderCreateState(ID3D11Device inDevice, TextureLibrary inTextureLibrary, ShaderLibrary inShaderLibrary)
         {
             Device = inDevice;
             TextureLibrary = inTextureLibrary;
@@ -2051,7 +2033,7 @@ namespace Frosty.Core.Viewport
                 if (idx != -1) material.TextureParameters[idx] = param;
                 else material.TextureParameters.Add(param);
             }
-            if (ProfilesLibrary.IsLoaded(ProfileVersion.StarWarsBattlefrontII, ProfileVersion.Anthem, ProfileVersion.StarWarsSquadrons, ProfileVersion.Battlefield2042, ProfileVersion.NeedForSpeedUnbound, ProfileVersion.DeadSpace, ProfileVersion.DragonAgeVeilguard))
+            if (ProfilesLibrary.DataVersion == (int)ProfileVersion.StarWarsBattlefrontII || ProfilesLibrary.DataVersion == (int)ProfileVersion.Anthem || ProfilesLibrary.DataVersion == (int)ProfileVersion.StarWarsSquadrons)
             {
                 foreach (dynamic param in shader.ConditionalParameters)
                 {
@@ -2116,7 +2098,7 @@ namespace Frosty.Core.Viewport
     public class MeshRenderBase
     {
         public virtual string DebugName { get; }
-        public virtual void Render(DeviceContext context, MeshRenderPath renderPath)
+        public virtual void Render(ID3D11DeviceContext context, MeshRenderPath renderPath)
         {
         }
     }
@@ -2138,10 +2120,10 @@ namespace Frosty.Core.Viewport
 
         public override string DebugName => name;
 
-        private D3D11.Buffer vertexBuffer;
-        private D3D11.Buffer indexBuffer;
-        private D3D11.Buffer pixelParameters;
-        private List<ShaderResourceView> pixelTextures = new List<ShaderResourceView>();
+        private D3D11.ID3D11Buffer vertexBuffer;
+        private D3D11.ID3D11Buffer indexBuffer;
+        private D3D11.ID3D11Buffer pixelParameters;
+        private List<ID3D11ShaderResourceView> pixelTextures = new();
         private ShaderPermutation permutation;
         private int indexCount = 0;
         private string name;
@@ -2178,7 +2160,7 @@ namespace Frosty.Core.Viewport
                     Vector3 normal = new Vector3(dx, dy, dz);
                     Vector3 pos = normal * radius;
 
-                    vertices.Add(new ShapeVertex(pos, Vector3.TransformCoordinate(normal, Matrix.Scaling(-1, 1, -1)), Vector2.Zero));
+                    vertices.Add(new ShapeVertex(pos, Vector3.TransformCoordinate(normal, Matrix4x4.CreateScale(-1, 1, -1)), Vector2.Zero));
                 }
             }
 
@@ -2280,21 +2262,23 @@ namespace Frosty.Core.Viewport
         /// <summary>
         /// Constructs a renderable shape from a list of vertices/indices
         /// </summary>
-        private MeshRenderShape(RenderCreateState state, string inName, string shaderName, List<ShapeVertex> vertices, List<ushort> indices)
+        private unsafe MeshRenderShape(RenderCreateState state, string inName, string shaderName, List<ShapeVertex> vertices, List<ushort> indices)
         {
-            using (DataStream stream = new DataStream(indices.Count * 2, false, true))
+            using (Vortice.DataStream stream = new Vortice.DataStream(indices.Count * 2, false, true))
             {
                 stream.WriteRange<ushort>(indices.ToArray());
                 stream.Position = 0;
 
-                indexBuffer = new D3D11.Buffer(state.Device, stream, indices.Count * 2, ResourceUsage.Default, BindFlags.IndexBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 2);
+                ReadOnlySpan<byte> data = new(stream.BaseUnsafePointer, indices.Count * 2);
+                indexBuffer = state.Device.CreateBuffer(data, BindFlags.IndexBuffer, ResourceUsage.Default, CpuAccessFlags.None, ResourceOptionFlags.None, structureByteStride: 2);
             }
-            using (DataStream stream = new DataStream(vertices.Count * (4 * 8), false, true))
+            using (Vortice.DataStream stream = new Vortice.DataStream(vertices.Count * (4 * 8), false, true))
             {
                 stream.WriteRange<ShapeVertex>(vertices.ToArray());
                 stream.Position = 0;
 
-                vertexBuffer = new D3D11.Buffer(state.Device, stream, vertices.Count * (4 * 8), ResourceUsage.Default, BindFlags.VertexBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, (4 * 8));
+                ReadOnlySpan<byte> data = new(stream.BaseUnsafePointer, vertices.Count * (4 * 8));
+                vertexBuffer = state.Device.CreateBuffer(data, BindFlags.VertexBuffer, ResourceUsage.Default, CpuAccessFlags.None, ResourceOptionFlags.None, structureByteStride: (4 * 8));
             }
 
             GeometryDeclarationDesc geomDecl = GeometryDeclarationDesc.Create(new GeometryDeclarationDesc.Element[]
@@ -2315,21 +2299,21 @@ namespace Frosty.Core.Viewport
         /// <summary>
         /// Renders this shape
         /// </summary>
-        public override void Render(DeviceContext context, MeshRenderPath renderPath)
+        public override void Render(ID3D11DeviceContext context, MeshRenderPath renderPath)
         {
             if (renderPath == MeshRenderPath.Shadows || renderPath == MeshRenderPath.Selection)
                 return;
 
-            context.InputAssembler.SetIndexBuffer(indexBuffer, SharpDX.DXGI.Format.R16_UInt, 0);
+            context.IASetIndexBuffer(indexBuffer, Vortice.DXGI.Format.R16_UInt, 0);
 
-            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(vertexBuffer, 4 * 8, 0));
+            context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+            context.IASetVertexBuffer(0, vertexBuffer, 4 * 8, 0);
 
             permutation.SetState(context, renderPath);
-            context.PixelShader.SetConstantBuffer(2, pixelParameters);
-            context.PixelShader.SetShaderResources(1, pixelTextures.ToArray());
+            context.PSSetConstantBuffer(2, pixelParameters);
+            context.PSSetShaderResources(1, pixelTextures.ToArray());
 
-            context.DrawIndexed(indexCount, 0, 0);
+            context.DrawIndexed((uint)(indexCount), 0, 0);
         }
 
         public void Dispose()

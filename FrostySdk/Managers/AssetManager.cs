@@ -2282,5 +2282,26 @@ namespace FrostySdk.Managers
             return loaderTypes[name].Name;
         }
         #endregion
+
+        public void RemoveAssetFromList(AssetEntry entry)
+        {
+            if (entry.IsAdded)
+            {
+                if (entry is EbxAssetEntry ebxEntry)
+                {
+                    m_ebxGuidList.Remove(ebxEntry.Guid);
+                    m_ebxList.Remove(ebxEntry.Name);
+                }
+                else if (entry is ResAssetEntry resEntry)
+                {
+                    m_resRidList.Remove(resEntry.ResRid);
+                    m_resList.Remove(resEntry.Name);
+                }
+                else if (entry is ChunkAssetEntry chunkEntry)
+                {
+                    m_chunkList.Remove(chunkEntry.Id);
+                }
+            }
+        }
     }
 }

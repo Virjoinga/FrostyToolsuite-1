@@ -322,6 +322,8 @@ namespace FrostySdk
                         if (key == null)
                             return;
 
+                        var decryptedBuffer = new byte[buffer.Length];
+
                         // need to decrypt the encrypted block
                         using (Aes aes = Aes.Create())
                         {
@@ -332,12 +334,12 @@ namespace FrostySdk
                             using (MemoryStream decryptStream = new MemoryStream(buffer))
                             {
                                 using (CryptoStream cryptoStream = new CryptoStream(decryptStream, decryptor, CryptoStreamMode.Read))
-                                    cryptoStream.Read(buffer, 0, buffer.Length);
+                                    cryptoStream.Read(decryptedBuffer, 0, decryptedBuffer.Length);
                             }
                         }
 
                         // now read in newly decrypted initfs
-                        using (DbReader newReader = new DbReader(new MemoryStream(buffer), CreateDeobfuscator()))
+                        using (DbReader newReader = new DbReader(new MemoryStream(decryptedBuffer), CreateDeobfuscator()))
                             initfs = newReader.ReadDbObject();
                     }
                 }

@@ -1,5 +1,7 @@
 using FrostySdk;
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -8,58 +10,77 @@ namespace Frosty.Core.Converters
 {
     public class StringToBitmapSourceConverter : IValueConverter
     {
-        public static readonly ImageSource CopySource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Copy.png") as ImageSource;
-        public static readonly ImageSource PasteSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Paste.png") as ImageSource;
+        public static readonly ImageSource CopySource = LoadImage("Copy.png", false);
+        public static readonly ImageSource PasteSource = LoadImage("Paste.png", false);
 
-        private static readonly ImageSource BlankSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/BlankFileType.png") as ImageSource;
-        private static readonly ImageSource ImageSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/ImageFileType.png") as ImageSource;
-        private static readonly ImageSource SoundWaveSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/SoundFileType.png") as ImageSource;
-        private static readonly ImageSource BlueprintSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/BlueprintFileType.png") as ImageSource;
-        private static readonly ImageSource SubWorldSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/SubWorldFileType.png") as ImageSource;
-        private static readonly ImageSource ShaderSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/ShaderFileType.png") as ImageSource;
-        private static readonly ImageSource ShaderPresetSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/ShaderPresetFileType.png") as ImageSource;
-        private static readonly ImageSource SpreadsheetSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/SpreadsheetFileType.png") as ImageSource;
-        private static readonly ImageSource StatSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/StatFileType.png") as ImageSource;
-        private static readonly ImageSource SkeletonSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/SkeletonFileType.png") as ImageSource;
-        private static readonly ImageSource EncryptedSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/EncryptedFileType.png") as ImageSource;
-        private static readonly ImageSource MovieTextureSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/MovieTextureFileType.png") as ImageSource;
-        private static readonly ImageSource ArchiveSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/ArchiveFileType.png") as ImageSource;
-        private static readonly ImageSource BlueprintBundleSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/BlueprintBundleFileType.png") as ImageSource;
-        private static readonly ImageSource EmitterSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/EmitterFileType.png") as ImageSource;
-        private static readonly ImageSource HavokSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/HavokFileType.png") as ImageSource;
-        private static readonly ImageSource LogicPrefabSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/LogicPrefabFileType.png") as ImageSource;
-        private static readonly ImageSource InternalSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/InternalFileType.png") as ImageSource;
-        private static readonly ImageSource ObjectVariationSource = new ImageSourceConverter().ConvertFromString("pack://application:,,,/FrostyCore;component/Images/Assets/ObjectVariationFileType.png") as ImageSource;
+        private static readonly ImageSource BlankSource = LoadImage("BlankFileType.png");
+        private static readonly ImageSource ImageTypeSource = LoadImage("ImageFileType.png");
+        private static readonly ImageSource SoundWaveSource = LoadImage("SoundFileType.png");
+        private static readonly ImageSource BlueprintSource = LoadImage("BlueprintFileType.png");
+        private static readonly ImageSource SubWorldSource = LoadImage("SubWorldFileType.png");
+        private static readonly ImageSource ShaderSource = LoadImage("ShaderFileType.png");
+        private static readonly ImageSource ShaderPresetSource = LoadImage("ShaderPresetFileType.png");
+        private static readonly ImageSource SpreadsheetSource = LoadImage("SpreadsheetFileType.png");
+        private static readonly ImageSource StatSource = LoadImage("StatFileType.png");
+        private static readonly ImageSource SkeletonSource = LoadImage("SkeletonFileType.png");
+        private static readonly ImageSource EncryptedSource = LoadImage("EncryptedFileType.png");
+        private static readonly ImageSource MovieTextureSource = LoadImage("MovieTextureFileType.png");
+        private static readonly ImageSource ArchiveSource = LoadImage("ArchiveFileType.png");
+        private static readonly ImageSource BlueprintBundleSource = LoadImage("BlueprintBundleFileType.png");
+        private static readonly ImageSource EmitterSource = LoadImage("EmitterFileType.png");
+        private static readonly ImageSource HavokSource = LoadImage("HavokFileType.png");
+        private static readonly ImageSource LogicPrefabSource = LoadImage("LogicPrefabFileType.png");
+        private static readonly ImageSource InternalSource = LoadImage("InternalFileType.png");
+        private static readonly ImageSource ObjectVariationSource = LoadImage("ObjectVariationFileType.png");
+
+        private static ImageSource LoadImage(string fileName, bool isAsset = true)
+        {
+            string folder = isAsset ? "Assets/" : string.Empty;
+            return new ImageSourceConverter().ConvertFromString($"pack://application:,,,/FrostyCore;component/Images/{folder}{fileName}") as ImageSource;
+        }
+
+        private static readonly Dictionary<string, ImageSource> SpecificAssetIconTypes = new()
+        {
+            ["EncryptedAsset"] = EncryptedSource,
+            ["ShaderGraph"] = ShaderSource,
+            ["SurfaceShaderPreset"] = ShaderPresetSource,
+            ["DifficultyWeaponTableData"] = SpreadsheetSource,
+            ["DifficultyNPCTableData"] = SpreadsheetSource,
+        };
+
+        private static readonly Dictionary<string, ImageSource> IconCache = new();
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             string str = value as string;
 
-            var definition = App.PluginManager.GetAssetDefinition(str);
-            if (definition != null)
-            {
-                return definition.GetIcon();
-            }
-
             if (str == null)
                 return BlankSource;
 
-            if (str == "EncryptedAsset")
-                return EncryptedSource;
+            if (IconCache.TryGetValue(str, out ImageSource cached))
+                return cached;
 
-            if (str == "ShaderGraph")
-                return ShaderSource;
+            ImageSource result = LoadIcon(str);
+            IconCache.Add(str, result);
 
-            if (str == "SurfaceShaderPreset")
-                return ShaderPresetSource;
+            return result;
+        }
 
-            if (str == "DifficultyWeaponTableData" || str == "DifficultyNPCTableData")
-                return SpreadsheetSource;
+        private static ImageSource LoadIcon(string str)
+        {
+            var definition = App.PluginManager.GetAssetDefinition(str);
+            if (definition != null)
+                return definition.GetIcon();
+
+            if (SpecificAssetIconTypes.TryGetValue(str, out ImageSource exact))
+                return exact;
 
             if (TypeLibrary.IsSubClassOf(str, "HavokAsset") || TypeLibrary.IsSubClassOf(str, "PhysicsAsset"))
                 return HavokSource;
 
-            if (TypeLibrary.IsSubClassOf(str, "EmitterGraphBaseAsset") || TypeLibrary.IsSubClassOf(str, "EmitterBaseAsset") || TypeLibrary.IsSubClassOf(str, "EmitterAsset")) 
+            if (TypeLibrary.IsSubClassOf(str, "EmitterGraphBaseAsset") ||
+                TypeLibrary.IsSubClassOf(str, "EmitterBaseAsset") ||
+                TypeLibrary.IsSubClassOf(str, "EmitterAsset"))
                 return EmitterSource;
 
             if (TypeLibrary.IsSubClassOf(str, "ZeroLatencyImpulseResponseAsset"))
@@ -75,7 +96,7 @@ namespace Frosty.Core.Converters
                 return LogicPrefabSource;
 
             if (TypeLibrary.IsSubClassOf(str, "Blueprint"))
-                return BlueprintSource; 
+                return BlueprintSource;
 
             if (TypeLibrary.IsSubClassOf(str, "SkeletonAsset"))
                 return SkeletonSource;

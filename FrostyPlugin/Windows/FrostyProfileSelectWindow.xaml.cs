@@ -10,7 +10,6 @@ using Frosty.Controls;
 using Frosty.Core.Controls;
 using FrostySdk;
 using Microsoft.Win32;
-using SharpDX;
 
 namespace Frosty.Core.Windows
 {

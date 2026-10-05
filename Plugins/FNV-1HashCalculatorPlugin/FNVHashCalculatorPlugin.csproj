@@ -1,8 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Configurations>Developer - Debug;Release - Alpha;Release - Beta;Release - Final</Configurations>
     <Platforms>x64</Platforms>
-    <TargetFrameworks>net48</TargetFrameworks>
+    <TargetFrameworks>net10.0-windows</TargetFrameworks>
     <AssemblyTitle>BlankPlugin</AssemblyTitle>
     <Product>BlankPlugin</Product>
     <Copyright>Copyright ©  2020</Copyright>
@@ -37,19 +37,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
-    <Reference Include="System.Xaml" />
-    <Reference Include="WindowsBase" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj">
       <Private>false</Private>
     </ProjectReference>
-    <ProjectReference Include="..\..\FrostyHash\FrostyHash.vcxproj">
-      <Private>false</Private>
-    </ProjectReference>
+    <ProjectReference Include="..\..\FrostyHash\FrostyHash.csproj" />
     <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj">
       <Private>false</Private>
     </ProjectReference>
@@ -59,11 +50,11 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy /Y $(TargetPath) $(SolutionDir)$(OutDir)Plugins\" />
-  </Target>
+		<ItemGroup>
+			<PluginFiles Include="$(TargetDir)$(ProjectName).*" />
+		</ItemGroup>
 
-  <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
-    <Exec Command="echo %25date%25 %25time%25 &gt; &quot;$(ProjectDir)\BuildDate.txt&quot;" />
-  </Target>
+		<Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(SolutionDir)FrostyEditor\$(OutDir)Plugins\" />
+	</Target>
 
 </Project>

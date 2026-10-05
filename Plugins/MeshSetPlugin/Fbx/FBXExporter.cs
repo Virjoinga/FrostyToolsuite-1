@@ -1,4 +1,5 @@
 ﻿using Frosty.Core;
+using Frosty.Core.Extensions;
 using Frosty.Core.Screens;
 using Frosty.Core.Viewport;
 using Frosty.Core.Windows;
@@ -6,14 +7,15 @@ using FrostySdk;
 using FrostySdk.IO;
 using MeshSetPlugin.Fbx;
 using MeshSetPlugin.Resources;
-using SharpDX;
-using SharpDX.Direct3D11;
-using Buffer = SharpDX.Direct3D11.Buffer;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using System.Linq;
+using System.Numerics;
+using System.Reflection;
+using Vortice;
+using Vortice.Direct3D;
+using Vortice.Direct3D11;
 
 namespace MeshSetPlugin
 {
@@ -126,10 +128,10 @@ namespace MeshSetPlugin
                         LinearTransform lt = lod.PartTransforms[i];
                         FbxNode node = boneNodes[i];
 
-                        Matrix boneMatrix = SharpDXUtils.FromLinearTransform(lt);
+                        Matrix4x4 boneMatrix = SharpDXUtils.FromLinearTransform(lt);
 
-                        Vector3 scale = boneMatrix.ScaleVector;
-                        Vector3 translation = boneMatrix.TranslationVector;
+                        Vector3 scale = boneMatrix.Scale;
+                        Vector3 translation = boneMatrix.Translation;
                         Vector3 euler = SharpDXUtils.ExtractEulerAngles(boneMatrix);
 
                         node.LclTranslation = new Vector3(translation.X, translation.Y, translation.Z);
@@ -242,7 +244,7 @@ namespace MeshSetPlugin
                                 }
                                 else if (type == 0xE)
                                 {
-                                    Vector3 euler = SharpDXUtils.ExtractEulerAngles(Matrix.RotationQuaternion(q));
+                                    Vector3 euler = SharpDXUtils.ExtractEulerAngles(Matrix4x4.CreateFromQuaternion(q));
                                     node.LclRotation = euler;
                                 }
                                 else
@@ -295,10 +297,10 @@ namespace MeshSetPlugin
             FbxNode rootNode = new FbxNode(scene, "ROOT");
             rootNode.SetNodeAttribute(skeletonAttribute);
 
-            Matrix boneMatrix = Matrix.Identity;
+            Matrix4x4 boneMatrix = Matrix4x4.Identity;
 
-            Vector3 scale = boneMatrix.ScaleVector;
-            Vector3 translation = boneMatrix.TranslationVector;
+            Vector3 scale = boneMatrix.Scale;
+            Vector3 translation = boneMatrix.Translation;
             Vector3 euler = SharpDXUtils.ExtractEulerAngles(boneMatrix);
 
             rootNode.LclTranslation = new Vector3(translation.X, translation.Y, translation.Z);
@@ -316,10 +318,10 @@ namespace MeshSetPlugin
                 boneNode.SetNodeAttribute(skeletonAttribute);
 
                 // parts are skinned to identity then moved
-                boneMatrix = Matrix.Identity;
+                boneMatrix = Matrix4x4.Identity;
 
-                scale = boneMatrix.ScaleVector;
-                translation = boneMatrix.TranslationVector;
+                scale = boneMatrix.Scale;
+                translation = boneMatrix.Translation;
                 euler = SharpDXUtils.ExtractEulerAngles(boneMatrix);
 
                 boneNode.LclTranslation = new Vector3(translation.X, translation.Y, translation.Z);
@@ -345,15 +347,15 @@ namespace MeshSetPlugin
             for (int boneIdx = 0; boneIdx < m_boneCount; boneIdx++)
             {
                 dynamic pose = skeletonAsset.LocalPose;
-                Matrix boneMatrix = new Matrix(
+                Matrix4x4 boneMatrix = new Matrix4x4(
                     pose[boneIdx].right.x, pose[boneIdx].right.y, pose[boneIdx].right.z, 0.0f,
                     pose[boneIdx].up.x, pose[boneIdx].up.y, pose[boneIdx].up.z, 0.0f,
                     pose[boneIdx].forward.x, pose[boneIdx].forward.y, pose[boneIdx].forward.z, 0.0f,
                     pose[boneIdx].trans.x, pose[boneIdx].trans.y, pose[boneIdx].trans.z, 1.0f
                     );
 
-                Vector3 scale = boneMatrix.ScaleVector;
-                Vector3 translation = boneMatrix.TranslationVector;
+                Vector3 scale = boneMatrix.Scale;
+                Vector3 translation = boneMatrix.Translation;
                 Vector3 euler = SharpDXUtils.ExtractEulerAngles(boneMatrix);
 
                 FbxSkeleton skeletonAttribute = new FbxSkeleton(scene, skeletonAsset.BoneNames[boneIdx]);
@@ -390,15 +392,15 @@ namespace MeshSetPlugin
                     string boneName = "PROC_Bone" + (procIndex++).ToString();
 
                     FbxNode parentBone = boneNodes[bone.ParentIndex];
-                    Matrix boneMatrix = new Matrix(
+                    Matrix4x4 boneMatrix = new Matrix4x4(
                         bone.Pose.right.x, bone.Pose.right.y, bone.Pose.right.z, 0.0f,
                         bone.Pose.up.x, bone.Pose.up.y, bone.Pose.up.z, 0.0f,
                         bone.Pose.forward.x, bone.Pose.forward.y, bone.Pose.forward.z, 0.0f,
                         bone.Pose.trans.x, bone.Pose.trans.y, bone.Pose.trans.z, 1.0f
                     );
 
-                    Vector3 scale = boneMatrix.ScaleVector;
-                    Vector3 translation = boneMatrix.TranslationVector;
+                    Vector3 scale = boneMatrix.Scale;
+                    Vector3 translation = boneMatrix.Translation;
                     Vector3 euler = SharpDXUtils.ExtractEulerAngles(boneMatrix);
 
                     FbxSkeleton skeletonAttribute = new FbxSkeleton(scene, boneName);
@@ -1149,49 +1151,51 @@ namespace MeshSetPlugin
                 }
 
                 // use compute shader to unpack tangent space to TBN
-                Device device = FrostyDeviceManager.Current.GetDevice();
-                ComputeShader cs = FrostyShaderDb.GetShader<ComputeShader>(device, shaderName);
-                Buffer inputBuffer = new Buffer(device, new BufferDescription()
+                ID3D11Device device = FrostyDeviceManager.Current.GetDevice();
+                ID3D11ComputeShader cs = FrostyShaderDb.GetShader<ID3D11ComputeShader>(device, shaderName);
+                ID3D11Buffer inputBuffer = device.CreateBuffer(new BufferDescription()
                 {
                     BindFlags = BindFlags.ShaderResource,
-                    CpuAccessFlags = CpuAccessFlags.Write,
-                    OptionFlags = ResourceOptionFlags.BufferStructured,
-                    SizeInBytes = inputSize,
+                    CPUAccessFlags = CpuAccessFlags.Write,
+                    MiscFlags = ResourceOptionFlags.BufferStructured,
+                    ByteWidth = (uint)(inputSize),
                     StructureByteStride = 4,
                     Usage = ResourceUsage.Default
                 });
-                Buffer outputBuffer = new Buffer(device, new BufferDescription()
+                ID3D11Buffer outputBuffer = device.CreateBuffer(new BufferDescription()
                 {
                     BindFlags = BindFlags.UnorderedAccess,
-                    CpuAccessFlags = CpuAccessFlags.None,
-                    OptionFlags = ResourceOptionFlags.BufferStructured,
-                    SizeInBytes = tangentSpace.Count * 3 * 4 * 4,
+                    CPUAccessFlags = CpuAccessFlags.None,
+                    MiscFlags = ResourceOptionFlags.BufferStructured,
+                    ByteWidth = (uint)(tangentSpace.Count * 3 * 4 * 4),
                     StructureByteStride = 4 * 4,
                     Usage = ResourceUsage.Default
                 });
-                Buffer stagingBuffer = new Buffer(device, new BufferDescription()
+                ID3D11Buffer stagingBuffer = device.CreateBuffer(new BufferDescription()
                 {
                     BindFlags = BindFlags.None,
-                    CpuAccessFlags = CpuAccessFlags.Read,
-                    OptionFlags = ResourceOptionFlags.BufferStructured,
+                    CPUAccessFlags = CpuAccessFlags.Read,
+                    MiscFlags = ResourceOptionFlags.BufferStructured,
                     Usage = ResourceUsage.Staging,
-                    SizeInBytes = tangentSpace.Count * 3 * 4 * 4,
+                    ByteWidth = (uint)(tangentSpace.Count * 3 * 4 * 4),
                     StructureByteStride = 4 * 4
                 });
-                ShaderResourceView u0 = new ShaderResourceView(device, inputBuffer, new ShaderResourceViewDescription()
+                ID3D11ShaderResourceView u0 = device.CreateShaderResourceView(inputBuffer, new ShaderResourceViewDescription()
                 {
-                    Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.ExtendedBuffer,
-                    BufferEx = new ShaderResourceViewDescription.ExtendedBufferResource()
+                    ViewDimension = ShaderResourceViewDimension.BufferExtended,
+                    BufferEx = new BufferExtendedShaderResourceView()
                     {
-                        ElementCount = inputSize / 4,
+                        NumElements = (uint)(inputSize / 4),
                         FirstElement = 0
                     }
                 });
-                UnorderedAccessView u1 = new UnorderedAccessView(device, outputBuffer);
+                ID3D11UnorderedAccessView u1 = device.CreateUnorderedAccessView(outputBuffer);
 
                 // populate input buffer
-                device.ImmediateContext.MapSubresource(inputBuffer, MapMode.Write, MapFlags.None, out DataStream ds);
+                MappedSubresource mappedResource = device.ImmediateContext.Map(inputBuffer, MapMode.Write, MapFlags.None);
                 {
+                    var ds = new Vortice.DataStream(mappedResource.DataPointer, inputBuffer.Description.ByteWidth, true, true);
+
                     for (int i = 0; i < tangentSpace.Count; i++)
                     {
                         if (tangentSpace[i] is uint)
@@ -1207,29 +1211,31 @@ namespace MeshSetPlugin
                     }
                     ds.Position = 0;
                 }
-                device.ImmediateContext.UnmapSubresource(inputBuffer, 0);
+                device.ImmediateContext.Unmap(inputBuffer, 0);
 
                 // run compute shader
-                device.ImmediateContext.ComputeShader.Set(cs);
-                device.ImmediateContext.ComputeShader.SetShaderResource(0, u0);
-                device.ImmediateContext.ComputeShader.SetUnorderedAccessViews(0, u1);
-                device.ImmediateContext.Dispatch(tangentSpace.Count, 1, 1);
-                device.ImmediateContext.ComputeShader.Set(null);
-                device.ImmediateContext.ComputeShader.SetUnorderedAccessViews(0, new UnorderedAccessView[] { null, null });
-                device.ImmediateContext.CopyResource(outputBuffer, stagingBuffer);
+                device.ImmediateContext.CSSetShader(cs);
+                device.ImmediateContext.CSSetShaderResource(0, u0);
+                device.ImmediateContext.CSSetUnorderedAccessView(0, u1);
+                device.ImmediateContext.Dispatch((uint)(tangentSpace.Count), 1, 1);
+                device.ImmediateContext.CSSetShader(null);
+                device.ImmediateContext.CSSetUnorderedAccessViews(0, new ID3D11UnorderedAccessView[2]);
+                device.ImmediateContext.CopyResource(stagingBuffer, outputBuffer);
 
                 // read output buffer
-                device.ImmediateContext.MapSubresource(stagingBuffer, MapMode.Read, MapFlags.None, out ds);
+                mappedResource = device.ImmediateContext.Map(stagingBuffer, MapMode.Read, MapFlags.None);
                 {
+                    using var ds = new Vortice.DataStream(mappedResource.DataPointer, stagingBuffer.Description.ByteWidth, true, true);
+
                     for (int i = 0; i < tangentSpace.Count; i++)
                     {
-                        Matrix4x3 m = ds.Read<Matrix4x3>();
+                        Frosty.Core.Screens.Matrix4x3 m = ds.Read<Frosty.Core.Screens.Matrix4x3>();
                         layerElemTangent.DirectArray.Add(m.M11, m.M21, m.M31, 1.0f);
                         layerElemBinormal.DirectArray.Add(m.M12, m.M22, m.M32, 1.0f);
                         layerElemNormal.DirectArray.Add(m.M13, m.M23, m.M33, 1.0f);
                     }
                 }
-                device.ImmediateContext.UnmapSubresource(stagingBuffer, 0);
+                device.ImmediateContext.Unmap(stagingBuffer, 0);
 
                 // dispose
                 u0.Dispose();

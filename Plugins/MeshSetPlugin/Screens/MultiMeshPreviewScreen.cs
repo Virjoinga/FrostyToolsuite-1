@@ -1,14 +1,15 @@
-﻿using Frosty.Core.Screens;
+﻿using Frosty.Core.Extensions;
+using Frosty.Core.Screens;
 using Frosty.Core.Viewport;
 using FrostySdk;
-using FrostySdk.Managers;
 using FrostySdk.Managers.Entries;
 using MeshSetPlugin.Render;
 using MeshSetPlugin.Resources;
-using SharpDX;
-using SharpDX.Direct3D11;
 using System;
 using System.Collections.Generic;
+using System.Numerics;
+using Vortice.Direct3D11;
+using Vortice.Mathematics;
 using DXUT = Frosty.Core.Viewport.DXUT;
 
 namespace MeshSetPlugin.Screens
@@ -19,10 +20,10 @@ namespace MeshSetPlugin.Screens
         public MeshRenderMesh Preview;
         public MeshMaterialCollection Materials;
         public bool bUpdateMaterials;
-        public Matrix Transform;
+        public Matrix4x4 Transform;
         public int MeshId;
 
-        public MeshAndPreviewContainer(int inMeshId, MeshSet inMesh, MeshRenderMesh inPreview, Matrix inTransform, MeshMaterialCollection inMaterials)
+        public MeshAndPreviewContainer(int inMeshId, MeshSet inMesh, MeshRenderMesh inPreview, Matrix4x4 inTransform, MeshMaterialCollection inMaterials)
         {
             MeshId = inMeshId;
             Mesh = inMesh;
@@ -68,7 +69,7 @@ namespace MeshSetPlugin.Screens
             return renderMeshes[meshId].Mesh;
         }
 
-        public int AddMesh(MeshSet mesh, MeshMaterialCollection materials, Matrix transform, MeshRenderSkeleton skeleton = null)
+        public int AddMesh(MeshSet mesh, MeshMaterialCollection materials, Matrix4x4 transform, MeshRenderSkeleton skeleton = null)
         {
             int meshId = currentMeshId;
             renderTasks.Enqueue((RenderCreateState state) =>
@@ -88,7 +89,7 @@ namespace MeshSetPlugin.Screens
             return currentMeshId++;
         }
 
-        public int AddLight(LightRenderType type, Matrix transform, Vector3 color, float intensity, float attenuationRadius, float sphereRadius)
+        public int AddLight(LightRenderType type, Matrix4x4 transform, Vector3 color, float intensity, float attenuationRadius, float sphereRadius)
         {
             renderLights.Add(new LightRenderInstance()
             {
@@ -103,7 +104,7 @@ namespace MeshSetPlugin.Screens
             return currentLightId++;
         }
 
-        public void ModifyLight(int lightId, Matrix transform, Vector3 color, float intensity, float attenuationRadius, float sphereRadius)
+        public void ModifyLight(int lightId, Matrix4x4 transform, Vector3 color, float intensity, float attenuationRadius, float sphereRadius)
         {
             int idx = renderLights.FindIndex((LightRenderInstance inst) => inst.LightId == lightId);
             if (idx != -1)
@@ -179,7 +180,7 @@ namespace MeshSetPlugin.Screens
             });
         }
 
-        public void SetTransform(int meshId, Matrix transform)
+        public void SetTransform(int meshId, Matrix4x4 transform)
         {
             renderTasks.Enqueue((RenderCreateState state) =>
             {
@@ -364,14 +365,14 @@ namespace MeshSetPlugin.Screens
 
             for (int i = 0; i < total; i++)
             {
-                Vector3 pos = VisualizeSkeleton.GetBoneWorldMatrix(i).TranslationVector;
+                Vector3 pos = VisualizeSkeleton.GetBoneWorldMatrix(i).Translation;
                 int parentId = VisualizeSkeleton.GetBone(i).ParentBoneId;
 
                 float sphereR = 0.015f;
 
                 if (parentId >= 0)
                 {
-                    Vector3 parentPos = VisualizeSkeleton.GetBoneWorldMatrix(parentId).TranslationVector;
+                    Vector3 parentPos = VisualizeSkeleton.GetBoneWorldMatrix(parentId).Translation;
                     float len = (pos - parentPos).Length();
 
                     if (len > 0.001f)
@@ -385,16 +386,17 @@ namespace MeshSetPlugin.Screens
                 jointInstances.Add(new MeshRenderInstance
                 {
                     RenderMesh = skeletonJointSphere,
-                    Transform = Matrix.Scaling(sphereR) * Matrix.Translation(pos)
+                    Transform = Matrix4x4.CreateScale(sphereR) * Matrix4x4.CreateTranslation(pos)
                 });
             }
 
-            Viewport.Context.OutputMerger.SetRenderTargets(null, Viewport.ColorBufferRTV);
-            Viewport.Context.OutputMerger.DepthStencilState = D3DUtils.CreateDepthStencilState(false);
-            Viewport.Context.OutputMerger.BlendState = D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget());
-            Viewport.Context.VertexShader.SetConstantBuffer(0, viewConstants.Buffer);
-            Viewport.Context.PixelShader.SetConstantBuffer(0, viewConstants.Buffer);
-            Viewport.Context.Rasterizer.State = D3DUtils.CreateRasterizerState(CullMode.Back, depthClip: false);
+            Viewport.Context.OMSetRenderTargets(Viewport.ColorBufferRTV, null);
+
+            Viewport.Context.OMSetDepthStencilState(D3DUtils.CreateDepthStencilState(false), 0);
+            Viewport.Context.OMSetBlendState(D3DUtils.CreateBlendState(D3DUtils.CreateBlendStateRenderTarget()));
+            Viewport.Context.VSSetConstantBuffer(0, viewConstants.Buffer);
+            Viewport.Context.PSSetConstantBuffer(0, viewConstants.Buffer);
+            Viewport.Context.RSSetState(D3DUtils.CreateRasterizerState(CullMode.Back, depthClip: false));
 
             // Bones first so joints draw on top of them.
             RenderMeshes(MeshRenderPath.Forward, boneInstances);
@@ -406,7 +408,7 @@ namespace MeshSetPlugin.Screens
             Vector3 dir = to - from;
             float len = dir.Length();
             if (len < 0.0001f) return;
-            dir.Normalize();
+            dir = Vector3.Normalize(dir);
             Vector3 mid = (from + to) * 0.5f;
             Vector3 up = Vector3.UnitY;
             Vector3 axis = Vector3.Cross(up, dir);
@@ -417,9 +419,9 @@ namespace MeshSetPlugin.Screens
             instances.Add(new MeshRenderInstance
             {
                 RenderMesh = skeletonBoneShape,
-                Transform = Matrix.Scaling(width, len, width)
-                           * Matrix.RotationQuaternion(rot)
-                           * Matrix.Translation(mid)
+                Transform = Matrix4x4.CreateScale(width, len, width)
+                           * Matrix4x4.CreateFromQuaternion(rot)
+                           * Matrix4x4.CreateTranslation(mid)
             });
         }
 
@@ -459,14 +461,14 @@ namespace MeshSetPlugin.Screens
             if (camera is DXUT.ModelViewerCamera mvCamera)
             {
                 mvCamera.Reset();
-                mvCamera.SetLookAtPt(aabb.Minimum + (aabb.Maximum - aabb.Minimum) * 0.5f);
-                mvCamera.SetEyePt(aabb.Minimum + (aabb.Maximum - aabb.Minimum) * 0.5f + Vector3.UnitY);
-                mvCamera.SetRadius((aabb.Maximum - aabb.Minimum).Length() * 1.0f);
+                mvCamera.SetLookAtPt(aabb.Min + (aabb.Max - aabb.Min) * 0.5f);
+                mvCamera.SetEyePt(aabb.Min + (aabb.Max - aabb.Min) * 0.5f + Vector3.UnitY);
+                mvCamera.SetRadius((aabb.Max - aabb.Min).Length() * 1.0f);
             }
             else if (camera is DXUT.FirstPersonCamera fpCamera)
             {
-                Vector3 center = aabb.Minimum + (aabb.Maximum - aabb.Minimum) * 0.5f;
-                Vector3 offset = center + new Vector3(0, Math.Abs(aabb.Maximum.Y - aabb.Minimum.Y) / 1.25f, (aabb.Maximum - aabb.Minimum).Length() * 0.9f);
+                Vector3 center = aabb.Min + (aabb.Max - aabb.Min) * 0.5f;
+                Vector3 offset = center + new Vector3(0, Math.Abs(aabb.Max.Y - aabb.Min.Y) / 1.25f, (aabb.Max - aabb.Min).Length() * 0.9f);
                 if (offset.Y < 0.5f)
                 {
                     offset.Y = 0.5f;
@@ -484,12 +486,12 @@ namespace MeshSetPlugin.Screens
             foreach (MeshAndPreviewContainer mesh in renderMeshes)
             {
                 BoundingBox bb = mesh.Preview.Bounds;
-                bb.Minimum = (bb.Minimum + mesh.Transform.TranslationVector) * new Vector3(-1, 1, 1);
-                bb.Maximum = (bb.Maximum + mesh.Transform.TranslationVector) * new Vector3(-1, 1, 1);
+                bb.Min = (bb.Min + mesh.Transform.Translation) * new Vector3(-1, 1, 1);
+                bb.Max = (bb.Max + mesh.Transform.Translation) * new Vector3(-1, 1, 1);
 
-                float tmp = bb.Minimum.X;
-                bb.Minimum.X = bb.Maximum.X;
-                bb.Maximum.X = tmp;
+                float tmp = bb.Min.X;
+                bb.Min.X = bb.Max.X;
+                bb.Max.X = tmp;
 
                 if (i++ == 0)
                 {
@@ -497,7 +499,7 @@ namespace MeshSetPlugin.Screens
                 }
                 else
                 {
-                    aabb = BoundingBox.Merge(aabb, bb);
+                    aabb = BoundingBox.CreateMerged(aabb, bb);
                 }
             }
 
@@ -526,10 +528,10 @@ namespace MeshSetPlugin.Screens
 
         public override string DebugName => name;
 
-        private SharpDX.Direct3D11.Buffer vertexBuffer;
-        private SharpDX.Direct3D11.Buffer indexBuffer;
-        private SharpDX.Direct3D11.Buffer pixelParameters;
-        private List<ShaderResourceView> pixelTextures = new List<ShaderResourceView>();
+        private ID3D11Buffer vertexBuffer;
+        private ID3D11Buffer indexBuffer;
+        private ID3D11Buffer pixelParameters;
+        private List<ID3D11ShaderResourceView> pixelTextures = new();
         private ShaderPermutation permutation;
         private int indexCount = 0;
         private string name;
@@ -562,7 +564,7 @@ namespace MeshSetPlugin.Screens
                     Vector3 normal = new Vector3(dx, dy, dz);
                     Vector3 pos = normal * radius;
 
-                    vertices.Add(new ShapeVertex(pos, Vector3.TransformCoordinate(normal, Matrix.Scaling(-1, 1, -1)), Vector2.Zero));
+                    vertices.Add(new ShapeVertex(pos, Vector3.TransformCoordinate(normal, Matrix4x4.CreateScale(-1, 1, -1)), Vector2.Zero));
                 }
             }
 
@@ -640,19 +642,23 @@ namespace MeshSetPlugin.Screens
             return new SkeletonRenderShape(state, inName, vertices, indices, color);
         }
 
-        private SkeletonRenderShape(RenderCreateState state, string inName, List<ShapeVertex> vertices, List<ushort> indices, Vector4 color)
+        private unsafe SkeletonRenderShape(RenderCreateState state, string inName, List<ShapeVertex> vertices, List<ushort> indices, Vector4 color)
         {
-            using (SharpDX.DataStream stream = new SharpDX.DataStream(indices.Count * 2, false, true))
+            using (Vortice.DataStream stream = new(indices.Count * 2, false, true))
             {
                 stream.WriteRange<ushort>(indices.ToArray());
                 stream.Position = 0;
-                indexBuffer = new SharpDX.Direct3D11.Buffer(state.Device, stream, indices.Count * 2, SharpDX.Direct3D11.ResourceUsage.Default, SharpDX.Direct3D11.BindFlags.IndexBuffer, SharpDX.Direct3D11.CpuAccessFlags.None, SharpDX.Direct3D11.ResourceOptionFlags.None, 2);
+                //indexBuffer = new state.Device.CreateBuffer(state.Device, stream, indices.Count * 2, SharpDX.Direct3D11.ResourceUsage.Default, SharpDX.Direct3D11.BindFlags.IndexBuffer, SharpDX.Direct3D11.CpuAccessFlags.None, SharpDX.Direct3D11.ResourceOptionFlags.None, 2);
+                ReadOnlySpan<byte> data = new(stream.BaseUnsafePointer, indices.Count * 2);
+                indexBuffer = state.Device.CreateBuffer(data, BindFlags.IndexBuffer, structureByteStride: 2);
             }
-            using (SharpDX.DataStream stream = new SharpDX.DataStream(vertices.Count * (4 * 8), false, true))
+            using (Vortice.DataStream stream = new(vertices.Count * (4 * 8), false, true))
             {
                 stream.WriteRange<ShapeVertex>(vertices.ToArray());
                 stream.Position = 0;
-                vertexBuffer = new SharpDX.Direct3D11.Buffer(state.Device, stream, vertices.Count * (4 * 8), SharpDX.Direct3D11.ResourceUsage.Default, SharpDX.Direct3D11.BindFlags.VertexBuffer, SharpDX.Direct3D11.CpuAccessFlags.None, SharpDX.Direct3D11.ResourceOptionFlags.None, (4 * 8));
+                //vertexBuffer = new SharpDX.Direct3D11.Buffer(state.Device, stream, vertices.Count * (4 * 8), SharpDX.Direct3D11.ResourceUsage.Default, SharpDX.Direct3D11.BindFlags.VertexBuffer, SharpDX.Direct3D11.CpuAccessFlags.None, SharpDX.Direct3D11.ResourceOptionFlags.None, (4 * 8));
+                ReadOnlySpan<byte> data = new(stream.BaseUnsafePointer, vertices.Count * (4 * 8));
+                vertexBuffer = state.Device.CreateBuffer(data, BindFlags.VertexBuffer, structureByteStride: 4 * 8);
             }
 
             GeometryDeclarationDesc geomDecl = GeometryDeclarationDesc.Create(new GeometryDeclarationDesc.Element[]
@@ -678,20 +684,20 @@ namespace MeshSetPlugin.Screens
             name = inName;
         }
 
-        public override void Render(SharpDX.Direct3D11.DeviceContext context, MeshRenderPath renderPath)
+        public override void Render(ID3D11DeviceContext context, MeshRenderPath renderPath)
         {
             if (renderPath == MeshRenderPath.Shadows || renderPath == MeshRenderPath.Selection)
                 return;
 
-            context.InputAssembler.SetIndexBuffer(indexBuffer, SharpDX.DXGI.Format.R16_UInt, 0);
-            context.InputAssembler.PrimitiveTopology = SharpDX.Direct3D.PrimitiveTopology.TriangleList;
-            context.InputAssembler.SetVertexBuffers(0, new SharpDX.Direct3D11.VertexBufferBinding(vertexBuffer, 4 * 8, 0));
+            context.IASetIndexBuffer(indexBuffer, Vortice.DXGI.Format.R16_UInt, 0);
+            context.IASetPrimitiveTopology(Vortice.Direct3D.PrimitiveTopology.TriangleList);
+            context.IASetVertexBuffer(0, vertexBuffer, 4 * 8);
 
             permutation.SetState(context, renderPath);
-            context.PixelShader.SetConstantBuffer(2, pixelParameters);
-            context.PixelShader.SetShaderResources(1, pixelTextures.ToArray());
+            context.PSSetConstantBuffer(2, pixelParameters);
+            context.PSSetShaderResources(1, pixelTextures.ToArray());
 
-            context.DrawIndexed(indexCount, 0, 0);
+            context.DrawIndexed((uint)indexCount, 0, 0);
         }
 
         public void Dispose()

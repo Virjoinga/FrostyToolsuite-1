@@ -5,7 +5,7 @@
                            xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                            xmlns:local="clr-namespace:FrostyEditor.Windows"
                            xmlns:ctrl="clr-namespace:Frosty.Controls;assembly=FrostyControls"
-                           Icon="/FrostyCore;component/AppIcon.ico"
+                           Icon="/FrostyEditor;component/AppIcon.ico"
                            mc:Ignorable="d"
                            Title="Load Profile" Height="250" Width="400" Loaded="Window_Loaded"
                            ResizeMode="NoResize" WindowStartupLocation="CenterScreen" SnapsToDevicePixels="True">

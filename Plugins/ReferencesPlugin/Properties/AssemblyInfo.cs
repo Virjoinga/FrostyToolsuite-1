@@ -25,6 +25,6 @@ using System.Windows;
 
 [assembly: PluginDisplayName("References Plugin")]
 [assembly: PluginAuthor("Cade")]
-[assembly: PluginVersion("1.0.1.0")]
+[assembly: PluginVersion("1.0.2.0")]
 
 [assembly: RegisterTabExtension(typeof(ReferenceTabExtension))]

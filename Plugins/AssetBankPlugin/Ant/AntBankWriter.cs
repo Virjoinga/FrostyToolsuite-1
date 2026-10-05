@@ -5,12 +5,16 @@ using Assimp;
 using Frosty.Controls;
 using Frosty.Core;
 using Frosty.Core.Windows;
+using FrostySdk;
+using FrostySdk.IO;
 using FrostySdk.Managers.Entries;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Windows;
 
 namespace AssetBankPlugin
@@ -18,6 +22,9 @@ namespace AssetBankPlugin
     public partial class AntStateAssetEditor
     {
         public byte[] BankBytes => _bankBytes;
+
+        private bool _isBankBytesDirty = false;
+
         public bool BankIsBigEndian => _bankIsBigEndian;
 
         public void UpdateBankBytes(byte[] newBytes)
@@ -64,6 +71,25 @@ namespace AssetBankPlugin
         private const uint SequenceAnimTrackTypeHash = 0x4A29AFED;
         private const uint SequenceAnimationTypeHash = 0x58BA350F;
 
+        private void ModifyResWithFastCompression(ResAssetEntry entry, byte[] data, CompressionType compression = CompressionType.None)
+        {
+            byte[] compressed = Utils.CompressFile(data, compressionOverride: compression);
+
+            if (entry.ModifiedEntry == null)
+                entry.ModifiedEntry = new ModifiedAssetEntry();
+
+            entry.ModifiedEntry.Data = compressed;
+            entry.ModifiedEntry.OriginalSize = data.Length;
+            entry.ModifiedEntry.Sha1 = ComputeSha1(compressed);
+            entry.IsDirty = true;
+        }
+
+        private static Sha1 ComputeSha1(byte[] buffer)
+        {
+            using (var sha = System.Security.Cryptography.SHA1.Create())
+                return new Sha1(sha.ComputeHash(buffer));
+        }
+
         private void SaveAllUnsaved()
         {
             if (_bankBytes == null)
@@ -72,80 +98,151 @@ namespace AssetBankPlugin
                 return;
             }
 
-            var unsaved = _masterGroups.SelectMany(g => g.Assets)
-                                       .Where(vm => vm.IsUnsaved)
-                                       .ToList();
+            // Main UI Thread
+            List<AntAssetViewModel> unsavedVms = null;
+            List<AntAsset> unsavedAssets = null;
+            bool hasChangesToSave = false;
 
-            if (unsaved.Count == 0)
+            Application.Current.Dispatcher.Invoke(() =>
             {
-                FrostyMessageBox.Show("No unsaved changes.", "Save");
+                unsavedVms = _masterGroups.SelectMany(g => g.Assets)
+                                          .Where(vm => vm.IsUnsaved)
+                                          .ToList();
+
+                hasChangesToSave = unsavedVms.Count > 0 || _isBankBytesDirty || AssetModified;
+
+                if (hasChangesToSave)
+                {
+                    unsavedAssets = new List<AntAsset>(unsavedVms.Count);
+                    foreach (var vm in unsavedVms)
+                    {
+                        if (vm.AssetInstance is AntAsset asset)
+                        {
+                            if (vm.IsModified)
+                            {
+                                ApplyUiEditsToAsset(vm);
+                            }
+                            unsavedAssets.Add(asset);
+                        }
+                    }
+                }
+            });
+
+            if (!hasChangesToSave)
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                    FrostyMessageBox.Show("No unsaved changes.", "Save"));
                 return;
             }
 
-            bool big = _bankIsBigEndian;
-            var classes = _bank.Classes2;
-            int savedCount = 0;
-
-            foreach (var assetVm in unsaved)
+            FrostyTaskWindow.Show("Saving Assets", "", (task) =>
             {
-                if (!(assetVm.AssetInstance is AntAsset asset)) continue;
+                bool big = _bankIsBigEndian;
+                var classes = _bank.Classes2;
+                int savedCount = 0;
+                int total = unsavedAssets.Count;
+                var succeededVms = new List<AntAssetViewModel>(total);
 
-                if (!assetVm.IsModified)
+                for (int i = 0; i < total; i++)
                 {
-                    savedCount++;
-                    continue;
+                    var vm = unsavedVms[i];
+                    var asset = unsavedAssets[i];
+
+                    if (task != null && total > 0)
+                    {
+                        double progress = ((double)i / total) * 80.0;
+                        task.Update($"Serializing {asset.Name} ({i + 1}/{total})...", progress);
+                    }
+
+                    try
+                    {
+                        byte[] newSection = DynamicDat2Serializer.Serialize(asset, classes, big);
+                        uint typeHash = DynamicDat2Serializer.GetTypeHashForAsset(asset, classes);
+                        ulong assetKey = GuidToKey(asset.ID);
+
+                        int keyOffset = 16;
+                        if (classes.TryGetValue(typeHash, out var layout))
+                        {
+                            var keyField = layout.Elements.FirstOrDefault(f => f.Name == "__key" || f.Name == "__guid");
+                            if (keyField != null) keyOffset = keyField.Offset;
+                        }
+
+                        int secStart = FindDat2SectionStart(_bankBytes, typeHash, assetKey, keyFieldOffset: keyOffset, big);
+                        if (secStart < 0)
+                        {
+                            App.Logger.LogError($"[AntStateEditor] Could not locate binary for '{asset.Name}' (0x{typeHash:X8}).");
+                            continue;
+                        }
+
+                        _bankBytes = SpliceSection(_bankBytes, secStart, newSection, big);
+                        savedCount++;
+
+                        succeededVms.Add(vm);
+                    }
+                    catch (Exception ex)
+                    {
+                        App.Logger.LogError($"[AntStateEditor] Serialize failed for '{asset.Name}': {ex.Message}\n{ex.StackTrace}");
+                        Application.Current.Dispatcher.Invoke(() =>
+                            FrostyMessageBox.Show($"Failed to serialize '{asset.Name}': {ex.Message}", "Save Failed"));
+                    }
                 }
 
-                ApplyUiEditsToAsset(assetVm);
+                if (task != null)
+                {
+                    task.Update("Compressing and writing bank bytes...", 90.0);
+                }
 
                 try
                 {
-                    byte[] newSection = DynamicDat2Serializer.Serialize(asset, classes, big);
-                    uint typeHash = DynamicDat2Serializer.GetTypeHashForAsset(asset, classes);
-                    ulong assetKey = GuidToKey(asset.ID);
+                    var opt = new AnimationOptions();
+                    opt.Load();
+                    CompressionType selectedCompression = opt.GetSelectedCompressionType();
 
-                    int keyOffset = 16;
-                    if (classes.TryGetValue(typeHash, out var layout))
-                    {
-                        var keyField = layout.Elements.FirstOrDefault(f => f.Name == "__key" || f.Name == "__guid");
-                        if (keyField != null) keyOffset = keyField.Offset;
-                    }
-
-                    int secStart = FindDat2SectionStart(_bankBytes, typeHash, assetKey, keyFieldOffset: keyOffset, big);
-                    if (secStart < 0)
-                    {
-                        App.Logger.LogError($"[AntStateEditor] Could not locate binary for '{asset.Name}' (0x{typeHash:X8}).");
-                        continue;
-                    }
-
-                    _bankBytes = SpliceSection(_bankBytes, secStart, newSection, big);
-                    savedCount++;
+                    if (_bankResEntry != null)
+                        ModifyResWithFastCompression(_bankResEntry, _bankBytes, selectedCompression);
+                    else if (_bankChunkEntry != null)
+                        App.AssetManager.ModifyChunk(_bankChunkEntry.Id, _bankBytes, selectedCompression);
                 }
                 catch (Exception ex)
                 {
-                    App.Logger.LogError($"[AntStateEditor] Serialize failed for '{asset.Name}': {ex.Message}\n{ex.StackTrace}");
-                    FrostyMessageBox.Show($"Failed to serialize '{asset.Name}': {ex.Message}", "Save Failed");
+                    App.Logger.LogError($"[AntStateEditor] Failed to write bank bytes: {ex.Message}");
+                    Application.Current.Dispatcher.Invoke(() =>
+                        FrostyMessageBox.Show($"Failed to write bank: {ex.Message}", "Save Failed"));
+                    return;
                 }
-            }
 
-            try
-            {
-                if (_bankResEntry != null)
-                    App.AssetManager.ModifyRes(_bankResEntry.Name, _bankBytes);
-                else if (_bankChunkEntry != null)
-                    App.AssetManager.ModifyChunk(_bankChunkEntry.Id, _bankBytes);
-            }
-            catch (Exception ex)
-            {
-                App.Logger.LogError($"[AntStateEditor] Failed to write bank bytes: {ex.Message}");
-                FrostyMessageBox.Show($"Failed to write bank: {ex.Message}", "Save Failed");
-                return;
-            }
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    foreach (var vm in succeededVms)
+                    {
+                        vm.IsUnsaved = false;
+                    }
 
-            foreach (var vm in unsaved)
-                vm.IsUnsaved = false;
+                    if (AssetEntry != null)
+                    {
+                        AssetEntry.IsDirty = true;
 
-            App.Logger.Log($"[AntStateEditor] Saved {savedCount} asset(s) to bank.");
+                        if (_bankResEntry != null)
+                        {
+                            _bankResEntry.IsDirty = true;
+                            AssetEntry.LinkAsset(_bankResEntry);
+                        }
+                        if (_bankChunkEntry != null)
+                        {
+                            _bankChunkEntry.IsDirty = true;
+                            AssetEntry.LinkAsset(_bankChunkEntry);
+                        }
+                    }
+
+                    _isBankBytesDirty = false;
+                    AssetModified = true;
+                });
+
+                if (savedCount > 0)
+                    App.Logger.Log($"[AntStateEditor] Saved {savedCount} asset(s) to bank.");
+                else
+                    App.Logger.Log($"[AntStateEditor] Bank updated successfully.");
+            });
         }
 
         private void ApplyUiEditsToAsset(AntAssetViewModel assetVm)
@@ -164,9 +261,11 @@ namespace AssetBankPlugin
 
         private void CommitPropertyEditsRecursive(AntPropertyViewModel prop, object parentContainer)
         {
-            if (prop.WasEdited)
+            bool isCollection = prop.ValueObj is System.Collections.IEnumerable && !(prop.ValueObj is string);
+
+            if ((prop.WasEdited && !isCollection) || prop.IsStructureModified)
             {
-                object parsedVal = ParseEditedValue(prop.EditedValue, prop.TypeStr);
+                object parsedVal = prop.IsStructureModified ? prop.ValueObj : ParseEditedValue(prop.EditedValue, prop.TypeStr);
 
                 if (parentContainer is Dictionary<string, object> dict)
                 {
@@ -193,8 +292,9 @@ namespace AssetBankPlugin
                     }
                 }
 
-                prop.ValueStr = prop.EditedValue;
+                prop.ValueStr = prop.IsStructureModified ? prop.GetString(parsedVal) : prop.EditedValue;
                 prop.ValueObj = parsedVal;
+                prop.IsStructureModified = false;
             }
 
             if (prop.Children != null && prop.Children.Count > 0)
@@ -236,7 +336,7 @@ namespace AssetBankPlugin
             }
         }
 
-        private static object DeepCopyRawData(object obj)
+        internal static object DeepCopyRawData(object obj)
         {
             if (obj == null) return null;
 
@@ -336,10 +436,17 @@ namespace AssetBankPlugin
                 var newRawData = (Dictionary<string, object>)DeepCopyRawData(sourceAsset.RawData);
 
                 ulong newKey = GenerateRandom64BitKey();
-
                 Guid newGuid = KeyToGuid(newKey);
 
-                string newName = MakeCopyName(sourceAsset.Name);
+                string suggestedName = MakeCopyName(sourceAsset.Name);
+
+                var renameWin = new DuplicateRenameWindow(suggestedName, _bank.DataNames.Keys) { Owner = Window.GetWindow(this) };
+                if (renameWin.ShowDialog() != true)
+                {
+                    return; // Action cancelled
+                }
+
+                string newName = renameWin.NewName;
 
                 newRawData["__name"] = newName;
                 newRawData["__guid"] = newGuid;
@@ -390,9 +497,13 @@ namespace AssetBankPlugin
                 {
                     filteredGroup = new AntTypeGroup { TypeName = newAsset.AssetType };
                     _filteredGroups.Add(filteredGroup);
+                    filteredGroup.Assets.Add(newVm);
                 }
-                int filteredIdx = filteredGroup.Assets.IndexOf(sourceVm);
-                filteredGroup.Assets.Insert(filteredIdx >= 0 ? filteredIdx + 1 : filteredGroup.Assets.Count, newVm);
+                else if (filteredGroup != group)
+                {
+                    int filteredIdx = filteredGroup.Assets.IndexOf(sourceVm);
+                    filteredGroup.Assets.Insert(filteredIdx >= 0 ? filteredIdx + 1 : filteredGroup.Assets.Count, newVm);
+                }
 
                 App.Logger.Log($"[AntStateEditor] Duplicated asset '{sourceAsset.Name}' -> '{newName}' dynamically (key: {newKey:X16}).");
             }
@@ -438,31 +549,49 @@ namespace AssetBankPlugin
 
             FrostyTaskWindow.Show("Importing Animation", "", (task) =>
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                try
                 {
-                    try
+                    byte[] newBank = null;
+
+                    // All supported animations are loaded via Assimp
+                    var ctx = new AssimpContext();
+                    Scene scene = ctx.ImportFile(filePath, PostProcessSteps.None);
+
+                    newBank = AnimationImporter.Import(
+                        scene, _bankBytes, template, _bank.Classes2, _bankIsBigEndian);
+
+                    if (newBank != null)
                     {
-                        var ctx = new AssimpContext();
-                        Scene scene = ctx.ImportFile(filePath, PostProcessSteps.None);
-
-                        byte[] newBank = AnimationImporter.Import(
-                            scene, _bankBytes, template, _bank.Classes2, _bankIsBigEndian);
-
-                        UpdateBankBytes(newBank);
+                        // Store in memory only
+                        _bankBytes = newBank;
 
                         App.Logger.Log(
                             "[AntStateEditor] Imported animation into '" + template.Name +
                             "' from '" + System.IO.Path.GetFileName(filePath) + "'.");
 
-                        FrostyMessageBox.Show("Animation imported successfully.", "Import Complete");
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            sourceVm.MarkModified();
+                            sourceVm.ResetProperties(); // Updates UI properties
+
+                            // Force a full reload with the templates active name
+                            _currentPreviewAsset = template;
+                            _currentPreviewName = template.Name;
+                            _ = LoadPreviewAsync(template, _currentPreviewName);
+
+                            FrostyMessageBox.Show(
+                                "Animation imported successfully.\nClick Save to commit changes.",
+                                "Import Complete");
+                        });
                     }
-                    catch (Exception ex)
-                    {
-                        App.Logger.LogError(
-                            "[AntStateEditor] Import failed: " + ex.Message + "\n" + ex.StackTrace);
-                        FrostyMessageBox.Show("Import failed: " + ex.Message, "Import Failed");
-                    }
-                });
+                }
+                catch (Exception ex)
+                {
+                    App.Logger.LogError(
+                        "[AntStateEditor] Import failed: " + ex.Message + "\n" + ex.StackTrace);
+                    Application.Current.Dispatcher.Invoke(() =>
+                        FrostyMessageBox.Show("Import failed: " + ex.Message, "Import Failed"));
+                }
             });
         }
 
@@ -494,7 +623,7 @@ namespace AssetBankPlugin
                 int trackRef = tHeap + t * 8;
                 if (trackRef + 8 > _bankBytes.Length) break;
                 long d2 = Decode60Bit(ReadU64(_bankBytes, trackRef, big));
-                int trackStart = (int)(trackRef + d2);    
+                int trackStart = (int)(trackRef + d2);
 
                 if (trackStart + 52 + 4 > _bankBytes.Length) break;
                 int animsCount = (int)ReadU32(_bankBytes, trackStart + 52, big);
@@ -509,7 +638,7 @@ namespace AssetBankPlugin
                     int animRef = aHeap + a * 8;
                     if (animRef + 8 > _bankBytes.Length) break;
                     long d4 = Decode60Bit(ReadU64(_bankBytes, animRef, big));
-                    int animStart = (int)(animRef + d4);    
+                    int animStart = (int)(animRef + d4);
 
                     int assetOffset = animStart + 32;
                     if (assetOffset + 8 > _bankBytes.Length) break;
@@ -519,7 +648,7 @@ namespace AssetBankPlugin
                     {
                         TrackIndex = t,
                         AnimIndex = a,
-                        AssetOffset = assetOffset,         
+                        AssetOffset = assetOffset,
                         CurrentKey = curAssetKey,
                     });
                 }
@@ -547,14 +676,161 @@ namespace AssetBankPlugin
 
             try
             {
+                var opt = new AnimationOptions();
+                opt.Load();
+                CompressionType selectedCompression = opt.GetSelectedCompressionType();
+
                 if (_bankResEntry != null)
-                    App.AssetManager.ModifyRes(_bankResEntry.Name, _bankBytes);
+                    ModifyResWithFastCompression(_bankResEntry, _bankBytes, selectedCompression);
                 else if (_bankChunkEntry != null)
-                    App.AssetManager.ModifyChunk(_bankChunkEntry.Id, _bankBytes);
+                    App.AssetManager.ModifyChunk(_bankChunkEntry.Id, _bankBytes, selectedCompression);
             }
             catch (Exception ex)
             {
-                App.Logger.LogError($"[AntStateEditor] EditAnimAssets save failed: {ex.Message}");
+                App.Logger.LogError($"[AntStateEditor] Failed to write bank bytes: {ex.Message}");
+                Application.Current.Dispatcher.Invoke(() =>
+                    FrostyMessageBox.Show($"Failed to write bank: {ex.Message}", "Save Failed"));
+                return;
+            }
+        }
+
+        private static Dictionary<string, object> GetOriginalAssetRawData(ResAssetEntry resEntry, ChunkAssetEntry chunkEntry, int bundleId, Guid assetId)
+        {
+            byte[] origBytes = null;
+            if (resEntry != null)
+            {
+                var mod = resEntry.ModifiedEntry;
+                resEntry.ModifiedEntry = null;
+                using (var origStream = App.AssetManager.GetRes(resEntry))
+                {
+                    if (origStream != null) { using (var ms = new MemoryStream()) { origStream.CopyTo(ms); origBytes = ms.ToArray(); } }
+                }
+                resEntry.ModifiedEntry = mod;
+            }
+            else if (chunkEntry != null)
+            {
+                var mod = chunkEntry.ModifiedEntry;
+                chunkEntry.ModifiedEntry = null;
+                using (var origStream = App.AssetManager.GetChunk(chunkEntry))
+                {
+                    if (origStream != null) { using (var ms = new MemoryStream()) { origStream.CopyTo(ms); origBytes = ms.ToArray(); } }
+                }
+                chunkEntry.ModifiedEntry = mod;
+            }
+
+            if (origBytes == null) return null;
+
+            Dictionary<string, object> rawData = null;
+            using (var reader = new NativeReader(new MemoryStream(origBytes)))
+            {
+                var activeRefs = AntRefTable.Refs;
+                var activeInternalRefs = AntRefTable.InternalRefs;
+                var tempRefs = new System.Collections.Concurrent.ConcurrentDictionary<Guid, AntAsset>();
+                var tempInternalRefs = new System.Collections.Concurrent.ConcurrentDictionary<Guid, Guid>();
+
+                AntRefTable.Refs = tempRefs;
+                AntRefTable.InternalRefs = tempInternalRefs;
+
+                var origBank = new Bank(reader, bundleId, isHashMode: false);
+                var asset = AntRefTable.Get(assetId);
+                if (asset != null)
+                {
+                    rawData = (Dictionary<string, object>)DeepCopyRawData(asset.RawData);
+                }
+
+                tempRefs.Clear();
+                tempInternalRefs.Clear();
+                AntRefTable.Refs = activeRefs;
+                AntRefTable.InternalRefs = activeInternalRefs;
+            }
+
+            return rawData;
+        }
+
+        public void RevertAsset(AntAssetViewModel vm)
+        {
+            if (vm == null) return;
+
+            if (vm.IsNew)
+            {
+                if (FrostyMessageBox.Show($"Are you sure you want to delete the duplicated asset '{vm.Name}'?", "Delete Asset", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
+                    return;
+
+                if (vm.AssetInstance is AntAsset asset)
+                {
+                    AntRefTable.Refs.TryRemove(vm.Id, out _);
+                    _bank?.DataNames.Remove(vm.Name);
+
+                    var group = _masterGroups.FirstOrDefault(g => g.TypeName == asset.AssetType);
+                    if (group != null) group.Assets.Remove(vm);
+
+                    var filteredGroup = _filteredGroups.FirstOrDefault(g => g.TypeName == asset.AssetType);
+                    if (filteredGroup != null) filteredGroup.Assets.Remove(vm);
+
+                    if (group != null && group.Assets.Count == 0) _masterGroups.Remove(group);
+                    if (filteredGroup != null && filteredGroup.Assets.Count == 0) _filteredGroups.Remove(filteredGroup);
+
+                    bool big = _bankIsBigEndian;
+                    var classes = _bank.Classes2;
+                    uint typeHash = DynamicDat2Serializer.GetTypeHashForAsset(asset, classes);
+                    ulong assetKey = GuidToKey(asset.ID);
+
+                    int keyOffset = 16;
+                    if (classes.TryGetValue(typeHash, out var layout))
+                    {
+                        var keyField = layout.Elements.FirstOrDefault(f => f.Name == "__key" || f.Name == "__guid");
+                        if (keyField != null) keyOffset = keyField.Offset;
+                    }
+
+                    int secStart = FindDat2SectionStart(_bankBytes, typeHash, assetKey, keyFieldOffset: keyOffset, big);
+                    if (secStart >= 0)
+                    {
+                        int sz = (int)ReadU32(_bankBytes, secStart + 8, big);
+                        byte[] result = new byte[_bankBytes.Length - sz];
+                        Buffer.BlockCopy(_bankBytes, 0, result, 0, secStart);
+                        Buffer.BlockCopy(_bankBytes, secStart + sz, result, secStart, _bankBytes.Length - secStart - sz);
+                        _bankBytes = result;
+                        _bankBytes = BankHeaderPatcher.PatchHeaderForKeys(_bankBytes, Array.Empty<ulong>(), big, new[] { assetKey });
+                    }
+
+                    _isBankBytesDirty = true;
+                    AssetModified = true;
+                    App.Logger.Log($"[AntStateEditor] Deleted duplicated asset '{vm.Name}'. Click 'Save' to commit changes.");
+                }
+            }
+            else
+            {
+                if (FrostyMessageBox.Show($"Are you sure you want to revert '{vm.Name}' to its original base-game state?", "Revert Asset", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
+                    return;
+
+                if (vm.AssetInstance is AntAsset asset)
+                {
+                    int bundleId = _bankResEntry != null ? _bankResEntry.Bundles[0] : _bankChunkEntry.Bundles[0];
+                    var originalRawData = GetOriginalAssetRawData(_bankResEntry, _bankChunkEntry, bundleId, vm.Id);
+
+                    if (originalRawData == null)
+                    {
+                        FrostyMessageBox.Show("Failed to retrieve original asset data.", "Error");
+                        return;
+                    }
+
+                    asset.RawData = originalRawData;
+                    asset.SetData(originalRawData);
+
+                    vm.ResetProperties();
+
+                    vm.IsModified = false;
+                    vm.IsUnsaved = true;
+                    _isBankBytesDirty = true;
+                    AssetModified = true;
+
+                    if (asset is AnimationAsset animAsset && _currentPreviewAsset == animAsset)
+                    {
+                        _ = LoadPreviewAsync(animAsset, _currentPreviewName);
+                    }
+
+                    App.Logger.Log($"[AntStateEditor] Reverted asset '{vm.Name}' back to original. Click 'Save' to write back.");
+                }
             }
         }
 
@@ -562,7 +838,7 @@ namespace AssetBankPlugin
         {
             public int TrackIndex;
             public int AnimIndex;
-            public int AssetOffset;          
+            public int AssetOffset;
             public ulong CurrentKey;
             public ulong NewKey;
             public bool WasEdited;

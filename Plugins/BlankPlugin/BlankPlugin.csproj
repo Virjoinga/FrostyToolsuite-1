@@ -1,12 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Configurations>Developer - Debug;Release - Alpha;Release - Beta;Release - Final</Configurations>
     <Platforms>x64</Platforms>
-    <TargetFrameworks>net48</TargetFrameworks>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <AssemblyTitle>BlankPlugin</AssemblyTitle>
     <Product>BlankPlugin</Product>
     <Copyright>Copyright ©  2020</Copyright>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <UseWPF>true</UseWPF>
     <OutputType>Library</OutputType>
@@ -37,19 +38,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
-    <Reference Include="System.Xaml" />
-    <Reference Include="WindowsBase" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\..\FrostyControls\FrostyControls.csproj">
       <Private>false</Private>
     </ProjectReference>
-    <ProjectReference Include="..\..\FrostyHash\FrostyHash.vcxproj">
-      <Private>false</Private>
-    </ProjectReference>
+    <ProjectReference Include="..\..\FrostyHash\FrostyHash.csproj" />
     <ProjectReference Include="..\..\FrostyPlugin\FrostyCore.csproj">
       <Private>false</Private>
     </ProjectReference>
@@ -57,5 +49,13 @@
       <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <ItemGroup>
+      <PluginFiles Include="$(TargetDir)$(ProjectName).*" />
+    </ItemGroup>
+    
+    <Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(SolutionDir)FrostyEditor\$(OutDir)Plugins\" />
+  </Target>
 
 </Project>

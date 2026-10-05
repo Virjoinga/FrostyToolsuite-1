@@ -1,7 +1,7 @@
 ﻿using System;
 using FrostySdk.IO;
-using D3D11 = SharpDX.Direct3D11;
-using SharpDX.D3DCompiler;
+using D3D11 = Vortice.Direct3D11;
+using Vortice.D3DCompiler;
 using System.Reflection;
 using Frosty.Core.Attributes;
 
@@ -9,35 +9,35 @@ namespace Frosty.Core.Viewport
 {
     public static class FrostyShaderDb
     {
-        public static T GetShader<T>(D3D11.Device device, string entryPoint) where T : D3D11.DeviceChild
+        public static T GetShader<T>(D3D11.ID3D11Device device, string entryPoint) where T : D3D11.ID3D11DeviceChild
         {
-            byte[] buffer = GetShaderFromBin(entryPoint, typeof(T) == typeof(D3D11.PixelShader), typeof(T) == typeof(D3D11.ComputeShader));
+            byte[] buffer = GetShaderFromBin(entryPoint, typeof(T) == typeof(D3D11.ID3D11PixelShader), typeof(T) == typeof(D3D11.ID3D11ComputeShader));
 
-            if (typeof(T) == typeof(D3D11.VertexShader))
-                return (T)Convert.ChangeType(new D3D11.VertexShader(device, buffer), typeof(T));
-            
-            if (typeof(T) == typeof(D3D11.PixelShader))
-                return (T)Convert.ChangeType(new D3D11.PixelShader(device, buffer), typeof(T));
-            
-            if (typeof(T) == typeof(D3D11.ComputeShader))
-                return (T)Convert.ChangeType(new D3D11.ComputeShader(device, buffer), typeof(T));
+            if (typeof(T) == typeof(D3D11.ID3D11VertexShader))
+                return (T)Convert.ChangeType(device.CreateVertexShader(buffer), typeof(T));
+
+            if (typeof(T) == typeof(D3D11.ID3D11PixelShader))
+                return (T)Convert.ChangeType(device.CreatePixelShader(buffer), typeof(T));
+
+            if (typeof(T) == typeof(D3D11.ID3D11ComputeShader))
+                return (T)Convert.ChangeType(device.CreateComputeShader(buffer), typeof(T));
 
             return default;
         }
 
-        public static T GetShaderWithSignature<T>(D3D11.Device device, string entryPoint, out ShaderSignature signature)
+        public static T GetShaderWithSignature<T>(D3D11.ID3D11Device device, string entryPoint, out byte[] signature)
         {
-            byte[] buffer = GetShaderFromBin(entryPoint, typeof(T) == typeof(D3D11.PixelShader), typeof(T) == typeof(D3D11.ComputeShader));
-            signature = new ShaderSignature(buffer);
+            byte[] buffer = GetShaderFromBin(entryPoint, typeof(T) == typeof(D3D11.ID3D11PixelShader), typeof(T) == typeof(D3D11.ID3D11ComputeShader));
+            signature = buffer;
 
-            if (typeof(T) == typeof(D3D11.VertexShader))
-                return (T)Convert.ChangeType(new D3D11.VertexShader(device, buffer), typeof(T));
-            
-            if (typeof(T) == typeof(D3D11.PixelShader))
-                return (T)Convert.ChangeType(new D3D11.PixelShader(device, buffer), typeof(T));
-            
-            if (typeof(T) == typeof(D3D11.ComputeShader))
-                return (T)Convert.ChangeType(new D3D11.ComputeShader(device, buffer), typeof(T));
+            if (typeof(T) == typeof(D3D11.ID3D11VertexShader))
+                return (T)Convert.ChangeType(device.CreateVertexShader(buffer), typeof(T));
+
+            if (typeof(T) == typeof(D3D11.ID3D11PixelShader))
+                return (T)Convert.ChangeType(device.CreatePixelShader(buffer), typeof(T));
+
+            if (typeof(T) == typeof(D3D11.ID3D11ComputeShader))
+                return (T)Convert.ChangeType(device.CreateComputeShader(buffer), typeof(T));
 
             return default;
         }

@@ -36,7 +36,7 @@ namespace AssetBankPlugin.Render
                 for (int i = 0; i < anim.RotationChannels.Count && i < frame.Rotations.Count; i++)
                 {
                     GetOrAdd(anim.RotationChannels[i]).Rotations.Add(
-                        new MeshRenderAnim.Keyframe<SharpDX.Quaternion>
+                        new MeshRenderAnim.Keyframe<Quaternion>
                         {
                             FrameTime = frame.FrameIndex,
                             Value = ToSharpDX(frame.Rotations[i])
@@ -46,7 +46,7 @@ namespace AssetBankPlugin.Render
                 for (int i = 0; i < anim.PositionChannels.Count && i < frame.Positions.Count; i++)
                 {
                     GetOrAdd(anim.PositionChannels[i]).Translations.Add(
-                        new MeshRenderAnim.Keyframe<SharpDX.Vector3>
+                        new MeshRenderAnim.Keyframe<Vector3>
                         {
                             FrameTime = frame.FrameIndex,
                             Value = ToSharpDX(frame.Positions[i])
@@ -56,7 +56,7 @@ namespace AssetBankPlugin.Render
                 for (int i = 0; i < anim.ScaleChannels.Count && i < frame.Scales.Count; i++)
                 {
                     GetOrAdd(anim.ScaleChannels[i]).Scales.Add(
-                        new MeshRenderAnim.Keyframe<SharpDX.Vector3>
+                        new MeshRenderAnim.Keyframe<Vector3>
                         {
                             FrameTime = frame.FrameIndex,
                             Value = ToSharpDX(frame.Scales[i])
@@ -68,10 +68,10 @@ namespace AssetBankPlugin.Render
             return renderAnim;
         }
 
-        private static SharpDX.Quaternion ToSharpDX(Quaternion q)
-            => new SharpDX.Quaternion(q.X, q.Y, q.Z, q.W);
+        private static Quaternion ToSharpDX(Quaternion q)
+            => new Quaternion(q.X, q.Y, q.Z, q.W);
 
-        private static SharpDX.Vector3 ToSharpDX(Vector3 v)
-            => new SharpDX.Vector3(v.X, v.Y, v.Z);
+        private static Vector3 ToSharpDX(Vector3 v)
+            => new Vector3(v.X, v.Y, v.Z);
     }
 }

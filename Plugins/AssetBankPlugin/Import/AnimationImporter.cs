@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using Assimp;
 using AssetBankPlugin.Ant;
 using AssetBankPlugin.Ant.VBR;
 using AssetBankPlugin.Formats.GenericData2;
+using Frosty.Core;
 
 namespace AssetBankPlugin.Import
 {
@@ -16,23 +18,37 @@ namespace AssetBankPlugin.Import
             VbrAnimationAsset template,
             Dictionary<uint, GenericClass2> classes,
             bool bigEndian,
-            float maxRotErrPct = 0.42f,
-            float maxTransErrPct = 0.42f,
-            float maxTrajErrPct = 0.42f)
+            float maxRotErrPct = 0f,
+            float maxTransErrPct = 0f,
+            float maxTrajErrPct = 0f)
         {
-            if (scene == null) throw new ArgumentNullException("scene");
-            if (bankBytes == null || bankBytes.Length == 0) throw new ArgumentNullException("bankBytes");
-            if (template == null) throw new ArgumentNullException("template");
-            if (classes == null) throw new ArgumentNullException("classes");
+            if (scene == null) throw new ArgumentNullException(nameof(scene));
+            if (bankBytes == null || bankBytes.Length == 0) throw new ArgumentNullException(nameof(bankBytes));
+            if (template == null) throw new ArgumentNullException(nameof(template));
+            if (classes == null) throw new ArgumentNullException(nameof(classes));
 
             if (!scene.HasAnimations)
-                throw new InvalidOperationException(
-                    "The imported file contains no animations.");
+                throw new InvalidOperationException("The imported file contains no animations.");
+
+            float quality = Config.Get<float>("AnimationImportQuality", 1.0f, ConfigScope.Game);
+
+            // Map: Quality 1.0 is 0.0f Error (Max Quality)
+            //      Quality 0.0 is 1.0f Error (Min Quality) (lol)
+            float errorPct = Math.Max(0f, Math.Min(1f, 1.0f - quality));
 
             VbrAnimationAsset newAsset = VbrCompressor.Compress(
                 scene, template, bigEndian,
-                maxRotErrPct, maxTransErrPct, maxTrajErrPct);
+                errorPct, errorPct, errorPct);
 
+            return ProcessSplicing(newAsset, bankBytes, template, classes, bigEndian);
+        }
+        private static byte[] ProcessSplicing(
+            VbrAnimationAsset newAsset,
+            byte[] bankBytes,
+            VbrAnimationAsset template,
+            Dictionary<uint, GenericClass2> classes,
+            bool bigEndian)
+        {
             newAsset.Name = template.Name;
             newAsset.ID = template.ID;
 
@@ -61,15 +77,60 @@ namespace AssetBankPlugin.Import
 
             if (secStart < 0)
                 throw new InvalidOperationException(
-                    string.Format(
-                        "Cannot locate the binary section for '{0}' (type 0x{1:X8}) " +
-                        "in the bank. Confirm the duplicate was saved before importing.",
-                        template.Name, typeHash));
+                    $"Cannot locate the binary section for '{template.Name}' (type 0x{typeHash:X8}) " +
+                    "in the bank. Confirm the duplicate was saved before importing.");
 
             byte[] splicedBank = SpliceSection(bankBytes, secStart, newSection, bigEndian);
+            byte[] patchedBank = BankHeaderPatcher.PatchHeaderForKeys(splicedBank, Array.Empty<ulong>(), bigEndian);
 
-            byte[] patchedBank = BankHeaderPatcher.PatchHeaderForKeys(
-                splicedBank, new ulong[0], bigEndian);
+            template.Data = newAsset.Data;
+            template.ConstantPalette = newAsset.ConstantPalette;
+            template.FrameBlockSizes = newAsset.FrameBlockSizes;
+            template.PaletteIndexes = newAsset.PaletteIndexes;
+            template.ConstChanMap = newAsset.ConstChanMap;
+            template.QuaternionCount = newAsset.QuaternionCount;
+            template.Vector3Count = newAsset.Vector3Count;
+            template.NumFloat = newAsset.NumFloat;
+            template.ConstQuaternionCount = newAsset.ConstQuaternionCount;
+            template.ConstVector3Count = newAsset.ConstVector3Count;
+            template.ConstFloatCount = newAsset.ConstFloatCount;
+            template.QuatMin = newAsset.QuatMin;
+            template.QuatMax = newAsset.QuatMax;
+            template.TrajMin = newAsset.TrajMin;
+            template.TrajMax = newAsset.TrajMax;
+            template.Vec3Min = newAsset.Vec3Min;
+            template.Vec3Max = newAsset.Vec3Max;
+            template.FloatMin = newAsset.FloatMin;
+            template.FloatMax = newAsset.FloatMax;
+            template.Dct = newAsset.Dct;
+            template.KeyTimeSize = newAsset.KeyTimeSize;
+            template.ConstChanMapSize = newAsset.ConstChanMapSize;
+            template.ConstPaletteSize = newAsset.ConstPaletteSize;
+            template.Flags = newAsset.Flags;
+            template.EndFrame = newAsset.EndFrame;
+            template.NumKeys = newAsset.NumKeys;
+
+            if (newAsset.RawData != null)
+            {
+                template.RawData = new Dictionary<string, object>(newAsset.RawData);
+                template.RawData["__name"] = template.Name;
+                template.RawData["__guid"] = template.ID;
+                template.RawData["__key"] = GuidToKey(template.ID);
+
+                template.SetData(template.RawData);
+            }
+
+            if (template.FrameBlockSizes == null)
+                template.FrameBlockSizes = newAsset.FrameBlockSizes ?? new ushort[0];
+
+            var decompCacheField = typeof(VbrAnimationAsset).GetField(
+                "DecompressedData",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (decompCacheField != null)
+            {
+                var cacheList = decompCacheField.GetValue(template) as List<Vector4>;
+                cacheList?.Clear();
+            }
 
             return patchedBank;
         }

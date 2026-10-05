@@ -1,11 +1,11 @@
 ﻿using Frosty.Core;
 using FrostySdk.IO;
 using FrostySdk.Managers;
+using FrostySdk.Managers.Entries;
 using FrostySdk.Resources;
-using SharpDX;
 using System.Collections.Generic;
 using System.IO;
-using FrostySdk.Managers.Entries;
+using System.Numerics;
 
 namespace TestPlugin.Resources
 {

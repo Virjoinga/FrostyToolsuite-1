@@ -81,6 +81,8 @@ namespace AssetBankPlugin.Ant
             var DofCount = (QuaternionCount) + (Vector3Count) + NumFloat;
             var constDofCount = (ConstQuaternionCount * 4) + (ConstVector3Count * 3) + ConstFloatCount;
 
+            byte[] data = (byte[])Data.Clone();
+
             int totalFrameBlockSize = 0;
             for (var i = 0; i < FrameBlockSize; i++)
                 totalFrameBlockSize += FrameBlockSizes[i];

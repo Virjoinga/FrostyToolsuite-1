@@ -15,7 +15,7 @@ using System.Xml;
 using Frosty.Core.Controls;
 using Frosty.Core;
 using Frosty.Core.Windows;
-using Vector2 = SharpDX.Vector2;
+using Vector2 = System.Numerics.Vector2;
 using TestPlugin.Resources;
 using FrostySdk.IO;
 using FrostySdk.Managers.Entries;
@@ -65,11 +65,11 @@ namespace TestPlugin.Controls
         // This function registers a couple of toolbar items to be displayed when this editor is active
         public override List<ToolbarItem> RegisterToolbarItems()
         {
-            List<ToolbarItem> toolbarItems = base.RegisterToolbarItems();
-            toolbarItems.Add(new ToolbarItem("Export", "Export SVG", "FrostyEditor;component/Images/Export.png", new RelayCommand((object state) => { ExportButton_Click(this, new RoutedEventArgs()); })));
-            toolbarItems.Add(new ToolbarItem("Import", "Import SVG", "FrostyEditor;component/Images/Import.png", new RelayCommand((object state) => { ImportButton_Click(this, new RoutedEventArgs()); })));
-
-            return toolbarItems;
+            return new List<ToolbarItem>()
+            {
+                new ToolbarItem("Export", "Export SVG", "Images/Export.png", new RelayCommand((object state) => { ExportButton_Click(this, new RoutedEventArgs()); })),
+                new ToolbarItem("Import", "Import SVG", "Images/Import.png", new RelayCommand((object state) => { ImportButton_Click(this, new RoutedEventArgs()); })),
+            };
         }
 
         // This function is used to override the editors load function to ensure that the asset is loaded

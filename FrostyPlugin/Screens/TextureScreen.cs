@@ -1,8 +1,11 @@
 ﻿using Frosty.Core.Viewport;
 using FrostySdk.Resources;
-using SharpDX.D3DCompiler;
+using Vortice.D3DCompiler;
 using System.Runtime.InteropServices;
-using D3D11 = SharpDX.Direct3D11;
+using D3D11 = Vortice.Direct3D11;
+using System.Numerics;
+using System;
+using Vortice.Mathematics;
 
 namespace Frosty.Core.Screens
 {
@@ -11,68 +14,59 @@ namespace Frosty.Core.Screens
         [StructLayout(LayoutKind.Sequential)]
         private struct Vertex
         {
-            public SharpDX.Vector3 Position;
-            public SharpDX.Vector2 TexCoord;
+            public Vector3 Position;
+            public Vector2 TexCoord;
         }
 
         [StructLayout(LayoutKind.Sequential)]
         private struct Constants
         {
-            public SharpDX.Vector2 ViewportDim;
-            public SharpDX.Vector2 TextureDim;
-            public SharpDX.Matrix ChannelMask;
+            public Vector2 ViewportDim;
+            public Vector2 TextureDim;
+            public Matrix4x4 ChannelMask;
             public float SrgbEnabled;
             public float MipLevel;
             public float SliceLevel;
             public float Padding;
         }
 
-        public bool RedChannelEnabled 
-        { 
+        public bool RedChannelEnabled {
             get => redChannelEnabled;
             set => redChannelEnabled = value;
         }
 
-        public bool GreenChannelEnabled 
-        { 
+        public bool GreenChannelEnabled {
             get => greenChannelEnabled;
             set => greenChannelEnabled = value;
         }
 
-        public bool BlueChannelEnabled 
-        { 
+        public bool BlueChannelEnabled {
             get => blueChannelEnabled;
             set => blueChannelEnabled = value;
         }
 
-        public bool AlphaChannelEnabled 
-        { 
+        public bool AlphaChannelEnabled {
             get => alphaChannelEnabled;
             set => alphaChannelEnabled = value;
         }
 
-        public bool SrgbEnabled 
-        { 
+        public bool SrgbEnabled {
             get => srgbEnabled;
             set => srgbEnabled = value;
         }
 
-        public int MipLevel 
-        { 
+        public int MipLevel {
             get => mipLevel;
             set => mipLevel = value;
         }
 
-        public int SliceLevel 
-        { 
+        public int SliceLevel {
             get => sliceLevel;
             set => sliceLevel = value;
         }
-        public Texture TextureAsset
-        {
+        public Texture TextureAsset {
             get => textureAsset;
-            set
-            {
+            set {
                 if (textureAsset != value)
                 {
                     textureAsset = value;
@@ -83,17 +77,17 @@ namespace Frosty.Core.Screens
 
         private Texture textureAsset;
 
-        private D3D11.Texture2D texture;
-        private D3D11.ShaderResourceView textureSRV;
-        private D3D11.SamplerState samplerState;
-        private D3D11.RasterizerState rasterizerState;
-        private D3D11.DepthStencilState depthStencilState;
-        private D3D11.BlendState blendState;
-        private D3D11.InputLayout inputLayout;
-        private D3D11.VertexShader vertexShader;
-        private D3D11.PixelShader pixelShader;
-        private D3D11.Buffer vertexBuffer;
-        private D3D11.Buffer constantBuffer;
+        private D3D11.ID3D11Texture2D texture;
+        private D3D11.ID3D11ShaderResourceView textureSRV;
+        private D3D11.ID3D11SamplerState samplerState;
+        private D3D11.ID3D11RasterizerState rasterizerState;
+        private D3D11.ID3D11DepthStencilState depthStencilState;
+        private D3D11.ID3D11BlendState blendState;
+        private D3D11.ID3D11InputLayout inputLayout;
+        private D3D11.ID3D11VertexShader vertexShader;
+        private D3D11.ID3D11PixelShader pixelShader;
+        private D3D11.ID3D11Buffer vertexBuffer;
+        private D3D11.ID3D11Buffer constantBuffer;
 
         private bool redChannelEnabled;
         private bool greenChannelEnabled;
@@ -147,15 +141,15 @@ namespace Frosty.Core.Screens
                 texture = TextureUtils.LoadTexture(Viewport.Device, textureAsset);
 
                 // all texture types are represented by a 2D array (even a single T2D, just has one slice)
-                textureSRV = new D3D11.ShaderResourceView(Viewport.Device, texture, new D3D11.ShaderResourceViewDescription()
+                textureSRV = Viewport.Device.CreateShaderResourceView(texture, new D3D11.ShaderResourceViewDescription()
                 {
                     Format = TextureUtils.ToShaderFormat(textureAsset.PixelFormat, (textureAsset.Flags & TextureFlags.SrgbGamma) != 0),
-                    Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.Texture2DArray,
-                    Texture2DArray = new D3D11.ShaderResourceViewDescription.Texture2DArrayResource()
+                    ViewDimension = Vortice.Direct3D.ShaderResourceViewDimension.Texture2DArray,
+                    Texture2DArray = new D3D11.Texture2DArrayShaderResourceView()
                     {
                         ArraySize = texture.Description.ArraySize,
                         FirstArraySlice = 0,
-                        MipLevels = -1,
+                        MipLevels = unchecked((uint)(-1)),
                         MostDetailedMip = 0
                     }
                 });
@@ -163,7 +157,7 @@ namespace Frosty.Core.Screens
                 recreateTexture = false;
             }
 
-            SharpDX.Matrix channelMask = new SharpDX.Matrix();
+            Matrix4x4 channelMask = new();
 
             if (redChannelEnabled)
             {
@@ -190,9 +184,9 @@ namespace Frosty.Core.Screens
                 channelMask.M43 = (!redChannelEnabled && !greenChannelEnabled && !blueChannelEnabled) ? 1 : 0;
                 channelMask.M44 = (redChannelEnabled || greenChannelEnabled || blueChannelEnabled && alphaChannelEnabled) ? 1 : 0;
             }
-            channelMask.Transpose();
+            channelMask = Matrix4x4.Transpose(channelMask);
 
-            SharpDX.ViewportF[] viewports = Viewport.Context.Rasterizer.GetViewports<SharpDX.ViewportF>();
+            Vortice.Mathematics.Viewport[] viewports = Viewport.Context.RSGetViewports<Vortice.Mathematics.Viewport>().ToArray();
 
             Constants constants = new Constants
             {
@@ -214,25 +208,25 @@ namespace Frosty.Core.Screens
                 SliceLevel = sliceLevel
             };
 
-            Viewport.Context.ClearRenderTargetView(Viewport.ColorBufferRTV, new SharpDX.Color4(0, 0, 0, 0));
-            Viewport.Context.UpdateSubresource(ref constants, constantBuffer, 0);
+            Viewport.Context.ClearRenderTargetView(Viewport.ColorBufferRTV, new Color4(0, 0, 0, 0));
+            Viewport.Context.UpdateSubresource(in constants, constantBuffer, 0);
 
-            Viewport.Context.OutputMerger.BlendState = blendState;
-            Viewport.Context.OutputMerger.DepthStencilState = depthStencilState;
-            Viewport.Context.Rasterizer.State = rasterizerState;
+            Viewport.Context.OMSetBlendState(blendState);
+            Viewport.Context.OMSetDepthStencilState(depthStencilState);
+            Viewport.Context.RSSetState(rasterizerState);
 
-            Viewport.Context.InputAssembler.PrimitiveTopology = SharpDX.Direct3D.PrimitiveTopology.TriangleList;
-            Viewport.Context.InputAssembler.InputLayout = inputLayout;
-            Viewport.Context.InputAssembler.SetVertexBuffers(0, new D3D11.VertexBufferBinding(vertexBuffer, SharpDX.Utilities.SizeOf<Vertex>(), 0));
+            Viewport.Context.IASetPrimitiveTopology(Vortice.Direct3D.PrimitiveTopology.TriangleList);
+            Viewport.Context.IASetInputLayout(inputLayout);
+            Viewport.Context.IASetVertexBuffer(0, vertexBuffer, (uint)(Marshal.SizeOf<Vertex>()), 0);
 
-            Viewport.Context.VertexShader.SetConstantBuffer(0, constantBuffer);
-            Viewport.Context.PixelShader.SetConstantBuffer(0, constantBuffer);
+            Viewport.Context.VSSetConstantBuffer(0, constantBuffer);
+            Viewport.Context.PSSetConstantBuffer(0, constantBuffer);
 
             {
-                Viewport.Context.VertexShader.Set(vertexShader);
-                Viewport.Context.PixelShader.Set(pixelShader);
-                Viewport.Context.PixelShader.SetShaderResource(0, textureSRV);
-                Viewport.Context.PixelShader.SetSampler(0, samplerState);
+                Viewport.Context.VSSetShader(vertexShader);
+                Viewport.Context.PSSetShader(pixelShader);
+                Viewport.Context.PSSetShaderResource(0, textureSRV);
+                Viewport.Context.PSSetSampler(0, samplerState);
 
                 Viewport.Context.Draw(6, 0);
             }
@@ -266,48 +260,48 @@ namespace Frosty.Core.Screens
 
         private void CreateGlobalResources()
         {
-            rasterizerState = new D3D11.RasterizerState(Viewport.Device, new D3D11.RasterizerStateDescription()
+            rasterizerState = Viewport.Device.CreateRasterizerState(new D3D11.RasterizerDescription()
             {
                 CullMode = D3D11.CullMode.None,
                 DepthBias = 0,
                 DepthBiasClamp = 0,
                 FillMode = D3D11.FillMode.Solid,
-                IsAntialiasedLineEnabled = false,
-                IsDepthClipEnabled = false,
-                IsFrontCounterClockwise = false,
-                IsMultisampleEnabled = false,
-                IsScissorEnabled = false,
+                AntialiasedLineEnable = false,
+                DepthClipEnable = false,
+                FrontCounterClockwise = false,
+                MultisampleEnable = false,
+                ScissorEnable = false,
                 SlopeScaledDepthBias = 0
             });
 
-            D3D11.BlendStateDescription desc = new D3D11.BlendStateDescription();
-            desc.RenderTarget[0].IsBlendEnabled = true;
-            desc.RenderTarget[0].SourceBlend = D3D11.BlendOption.SourceAlpha;
-            desc.RenderTarget[0].DestinationBlend = D3D11.BlendOption.InverseSourceAlpha;
+            D3D11.BlendDescription desc = new D3D11.BlendDescription();
+            desc.RenderTarget[0].BlendEnable = true;
+            desc.RenderTarget[0].SourceBlend = D3D11.Blend.SourceAlpha;
+            desc.RenderTarget[0].DestinationBlend = D3D11.Blend.InverseSourceAlpha;
             desc.RenderTarget[0].BlendOperation = D3D11.BlendOperation.Add;
-            desc.RenderTarget[0].SourceAlphaBlend = D3D11.BlendOption.One;
-            desc.RenderTarget[0].DestinationAlphaBlend = D3D11.BlendOption.One;
-            desc.RenderTarget[0].AlphaBlendOperation = D3D11.BlendOperation.Add;
-            desc.RenderTarget[0].RenderTargetWriteMask = D3D11.ColorWriteMaskFlags.All;
-            blendState = new D3D11.BlendState(Viewport.Device, desc);
+            desc.RenderTarget[0].SourceBlendAlpha = D3D11.Blend.One;
+            desc.RenderTarget[0].DestinationBlendAlpha = D3D11.Blend.One;
+            desc.RenderTarget[0].BlendOperationAlpha = D3D11.BlendOperation.Add;
+            desc.RenderTarget[0].RenderTargetWriteMask = D3D11.ColorWriteEnable.All;
+            blendState = Viewport.Device.CreateBlendState(desc);
 
-            samplerState = new D3D11.SamplerState(Viewport.Device, new D3D11.SamplerStateDescription()
+            samplerState = Viewport.Device.CreateSamplerState(new D3D11.SamplerDescription()
             {
                 AddressU = D3D11.TextureAddressMode.Wrap,
                 AddressV = D3D11.TextureAddressMode.Wrap,
                 AddressW = D3D11.TextureAddressMode.Wrap,
-                BorderColor = new SharpDX.Color(0, 0, 0),
-                ComparisonFunction = D3D11.Comparison.Always,
+                BorderColor = new Color(0, 0, 0),
+                ComparisonFunc = D3D11.ComparisonFunction.Always,
                 Filter = D3D11.Filter.MinMagMipPoint,
-                MaximumAnisotropy = 16,
-                MaximumLod = 20,
-                MinimumLod = 0,
-                MipLodBias = 0
+                MaxAnisotropy = 16,
+                MaxLOD = 20,
+                MinLOD = 0,
+                MipLODBias = 0
             });
-            depthStencilState = new D3D11.DepthStencilState(Viewport.Device, new D3D11.DepthStencilStateDescription()
+            depthStencilState = Viewport.Device.CreateDepthStencilState(new D3D11.DepthStencilDescription()
             {
-                IsDepthEnabled = false,
-                IsStencilEnabled = false
+                DepthEnable = false,
+                StencilEnable = false
             });
         }
 
@@ -320,29 +314,28 @@ namespace Frosty.Core.Screens
         {
             Vertex[] vertices = new Vertex[]
             {
-                new Vertex() { Position = new SharpDX.Vector3(-1.0f, -1.0f, 0.0f), TexCoord = new SharpDX.Vector2(0, 1) },
-                new Vertex() { Position = new SharpDX.Vector3( 1.0f, -1.0f, 0.0f), TexCoord = new SharpDX.Vector2(1, 1) },
-                new Vertex() { Position = new SharpDX.Vector3(-1.0f,  1.0f, 0.0f), TexCoord = new SharpDX.Vector2(0, 0) },
+                new Vertex() { Position = new Vector3(-1.0f, -1.0f, 0.0f), TexCoord = new Vector2(0, 1) },
+                new Vertex() { Position = new Vector3( 1.0f, -1.0f, 0.0f), TexCoord = new Vector2(1, 1) },
+                new Vertex() { Position = new Vector3(-1.0f,  1.0f, 0.0f), TexCoord = new Vector2(0, 0) },
 
-                new Vertex() { Position = new SharpDX.Vector3( 1.0f,  1.0f, 0.0f), TexCoord = new SharpDX.Vector2(1, 0) },
-                new Vertex() { Position = new SharpDX.Vector3(-1.0f,  1.0f, 0.0f), TexCoord = new SharpDX.Vector2(0, 0) },
-                new Vertex() { Position = new SharpDX.Vector3( 1.0f, -1.0f, 0.0f), TexCoord = new SharpDX.Vector2(1, 1) }
+                new Vertex() { Position = new Vector3( 1.0f,  1.0f, 0.0f), TexCoord = new Vector2(1, 0) },
+                new Vertex() { Position = new Vector3(-1.0f,  1.0f, 0.0f), TexCoord = new Vector2(0, 0) },
+                new Vertex() { Position = new Vector3( 1.0f, -1.0f, 0.0f), TexCoord = new Vector2(1, 1) }
             };
-            vertexBuffer = D3D11.Buffer.Create(Viewport.Device, D3D11.BindFlags.VertexBuffer, vertices);
+            vertexBuffer = Viewport.Device.CreateBuffer(vertices, D3D11.BindFlags.VertexBuffer);
 
-            vertexShader = FrostyShaderDb.GetShaderWithSignature<D3D11.VertexShader>(Viewport.Device, "Texture", out ShaderSignature signature);
-            pixelShader = FrostyShaderDb.GetShader<D3D11.PixelShader>(Viewport.Device, "Texture");
+            vertexShader = FrostyShaderDb.GetShaderWithSignature<D3D11.ID3D11VertexShader>(Viewport.Device, "Texture", out byte[] signature);
+            pixelShader = FrostyShaderDb.GetShader<D3D11.ID3D11PixelShader>(Viewport.Device, "Texture");
 
-            D3D11.InputElement[] elements = new D3D11.InputElement[]
+            D3D11.InputElementDescription[] elements = new D3D11.InputElementDescription[]
             {
-                new D3D11.InputElement("POSITION", 0, SharpDX.DXGI.Format.R32G32B32_Float, 0, 0, D3D11.InputClassification.PerVertexData, 0),
-                new D3D11.InputElement("TEXCOORD", 0, SharpDX.DXGI.Format.R32G32_Float, 12, 0, D3D11.InputClassification.PerVertexData, 0)
+                new D3D11.InputElementDescription("POSITION", 0, Vortice.DXGI.Format.R32G32B32_Float, 0, 0, D3D11.InputClassification.PerVertexData, 0),
+                new D3D11.InputElementDescription("TEXCOORD", 0, Vortice.DXGI.Format.R32G32_Float, 12, 0, D3D11.InputClassification.PerVertexData, 0)
             };
-            inputLayout = new D3D11.InputLayout(Viewport.Device, signature, elements);
-            signature.Dispose();
+            inputLayout = Viewport.Device.CreateInputLayout(elements, signature);
 
-            constantBuffer = new D3D11.Buffer(Viewport.Device, SharpDX.Utilities.SizeOf<Constants>(), D3D11.ResourceUsage.Default,
-                D3D11.BindFlags.ConstantBuffer, D3D11.CpuAccessFlags.None, D3D11.ResourceOptionFlags.None, 0);
+            constantBuffer = Viewport.Device.CreateBuffer((uint)(Marshal.SizeOf<Constants>()), D3D11.BindFlags.ConstantBuffer,
+              D3D11.ResourceUsage.Default, D3D11.CpuAccessFlags.None, D3D11.ResourceOptionFlags.None, 0);
         }
     }
 }

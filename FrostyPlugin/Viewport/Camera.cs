@@ -1,6 +1,8 @@
-﻿using System;
+﻿using Frosty.Core.Extensions;
+using System;
+using System.Drawing;
+using System.Numerics;
 using System.Runtime.InteropServices;
-using SharpDX;
 
 namespace Frosty.Core.Viewport
 {
@@ -163,12 +165,12 @@ namespace Frosty.Core.Viewport
                 currentLookAt = lookAtPt;
                 defaultLookAt = lookAtPt;
 
-                viewMatrix = Matrix.LookAtLH(eyePt, lookAtPt, Vector3.UnitY);
+                viewMatrix = Matrix4x4.CreateLookAtLeftHanded(eyePt, lookAtPt, Vector3.UnitY);
 
-                Matrix invView = viewMatrix;
-                invView.Invert();
+                Matrix4x4 invView = viewMatrix;
+                Matrix4x4.Invert(invView, out invView);
 
-                Vector4 zBasis = invView.Row3;
+                Vector4 zBasis = invView.GetRow(2);
                 cameraYawAngle = (float)Math.Atan2(zBasis.X, zBasis.Z);
                 float len = (float)Math.Sqrt(zBasis.Z * zBasis.Z + zBasis.X * zBasis.X);
                 cameraPitchAngle = (float)-Math.Atan2(zBasis.Y, len);
@@ -181,7 +183,7 @@ namespace Frosty.Core.Viewport
                 nearPlane = inNearPlane;
                 farPlane = inFarPlane;
 
-                projMatrix = Matrix.PerspectiveFovLH(fov, aspectRatio, nearPlane, farPlane);
+                projMatrix = Matrix4x4.CreatePerspectiveFieldOfViewLeftHanded(fov, aspectRatio, nearPlane, farPlane);
             }
 
             public virtual void SetDragRect(Rectangle rc) { dragRect = rc; }
@@ -201,7 +203,7 @@ namespace Frosty.Core.Viewport
                 if (inMaxBoundary.HasValue)
                     maxBoundary = inMaxBoundary.Value;
             }
-            public void SetScalers(float inRotationScaler=0.01f, float inMoveScaler = 5.0f)
+            public void SetScalers(float inRotationScaler = 0.01f, float inMoveScaler = 5.0f)
             {
                 rotationScaler = inRotationScaler;
                 moveScaler = inMoveScaler;
@@ -213,34 +215,34 @@ namespace Frosty.Core.Viewport
             public void SetNumberOfFramesToSmoothMouseData(int inNumFrames) { if (inNumFrames > 0) framesToSmoothMouseData = (float)inNumFrames; }
             public void SetResetCursorAfterMove(bool inResetCursorAfterMove) { bResetCursorAfterMove = inResetCursorAfterMove; }
 
-            public Matrix GetViewMatrix() { return viewMatrix; }
-            public Matrix GetViewAtOriginMatrix() { return viewMatrixAtOrigin; }
-            public Matrix GetProjMatrix() { return projMatrix; }
-            public Matrix GetProjMatrix(float[] jitter)
+            public Matrix4x4 GetViewMatrix() { return viewMatrix; }
+            public Matrix4x4 GetViewAtOriginMatrix() { return viewMatrixAtOrigin; }
+            public Matrix4x4 GetProjMatrix() { return projMatrix; }
+            public Matrix4x4 GetProjMatrix(float[] jitter)
             {
-                Matrix jitteredProjMatrix = projMatrix;
+                Matrix4x4 jitteredProjMatrix = projMatrix;
                 jitteredProjMatrix.M31 = jitter[0];
                 jitteredProjMatrix.M32 = jitter[1];
                 return jitteredProjMatrix;
             }
-            public Matrix GetViewProjMatrix() { return viewMatrix * projMatrix; }
-            public Matrix GetViewProjMatrix(float[] jitter)
+            public Matrix4x4 GetViewProjMatrix() { return viewMatrix * projMatrix; }
+            public Matrix4x4 GetViewProjMatrix(float[] jitter)
             {
-                Matrix jitteredProjMatrix = projMatrix;
+                Matrix4x4 jitteredProjMatrix = projMatrix;
                 jitteredProjMatrix.M31 = jitter[0];
                 jitteredProjMatrix.M32 = jitter[1];
                 return viewMatrix * jitteredProjMatrix;
             }
-            public Matrix GetCrViewProjMatrix() { return viewMatrixAtOrigin * projMatrix; }
-            public Matrix GetCrViewProjMatrix(float[] jitter)
+            public Matrix4x4 GetCrViewProjMatrix() { return viewMatrixAtOrigin * projMatrix; }
+            public Matrix4x4 GetCrViewProjMatrix(float[] jitter)
             {
-                Matrix jitteredProjMatrix = projMatrix;
+                Matrix4x4 jitteredProjMatrix = projMatrix;
                 jitteredProjMatrix.M31 = jitter[0];
                 jitteredProjMatrix.M32 = jitter[1];
                 return viewMatrixAtOrigin * jitteredProjMatrix;
             }
-            public Matrix GetPrevViewProjMatrix() { return prevViewProjMatrix; }
-            public Matrix GetPrevCrViewProjMatrix() { return prevCrViewProjMatrix; }
+            public Matrix4x4 GetPrevViewProjMatrix() { return prevViewProjMatrix; }
+            public Matrix4x4 GetPrevCrViewProjMatrix() { return prevCrViewProjMatrix; }
             public virtual Vector3 GetEyePt() { return currentEye; }
             public Vector3 GetLookAtPt() { return currentLookAt; }
             public float GetNearClip() { return nearPlane; }
@@ -331,7 +333,7 @@ namespace Frosty.Core.Viewport
                 if (IsKeyDown(keyStates[(int)D3DUtil_CameraKeys.CAM_SPEED]))
                     multiplier = 4.0f;
 
-                acceleration.Normalize();
+                acceleration = Vector3.Normalize(acceleration);
                 acceleration *= moveScaler * multiplier;
 
                 if (bMovementDrag)
@@ -388,12 +390,12 @@ namespace Frosty.Core.Viewport
                     mouseMoveDelta = UpdateMouseDelta();
             }
 
-            protected Matrix viewMatrix;
-            protected Matrix projMatrix;
+            protected Matrix4x4 viewMatrix;
+            protected Matrix4x4 projMatrix;
 
-            protected Matrix viewMatrixAtOrigin;
-            protected Matrix prevViewProjMatrix;
-            protected Matrix prevCrViewProjMatrix;
+            protected Matrix4x4 viewMatrixAtOrigin;
+            protected Matrix4x4 prevViewProjMatrix;
+            protected Matrix4x4 prevCrViewProjMatrix;
 
             protected int numKeysDown;
             protected int[] keyStates = new int[(int)D3DUtil_CameraKeys.CAM_MAX_KEYS];
@@ -519,15 +521,15 @@ namespace Frosty.Core.Viewport
                     cameraYawAngle += yawDelta;
                 }
 
-                Matrix cameraRot = Matrix.RotationYawPitchRoll(cameraYawAngle, cameraPitchAngle, 0);
-                Matrix yawOnlyRot = Matrix.RotationYawPitchRoll(cameraYawAngle, 0, 0);
+                Matrix4x4 cameraRot = Matrix4x4.CreateFromYawPitchRoll(cameraYawAngle, cameraPitchAngle, 0);
+                Matrix4x4 yawOnlyRot = Matrix4x4.CreateFromYawPitchRoll(cameraYawAngle, 0, 0);
 
                 Vector3 worldUp = Vector3.TransformCoordinate(Vector3.UnitY, cameraRot);
                 Vector3 worldAhead = Vector3.TransformCoordinate(Vector3.UnitZ, cameraRot);
 
                 if (!bEnableYAxisMovement)
                 {
-                    cameraRot = Matrix.RotationYawPitchRoll(cameraYawAngle, 0, 0);
+                    cameraRot = Matrix4x4.CreateFromYawPitchRoll(cameraYawAngle, 0, 0);
                 }
 
                 Vector3 posDeltaWorld = Vector3.TransformCoordinate(posDelta, cameraRot);
@@ -541,15 +543,15 @@ namespace Frosty.Core.Viewport
                 }
 
                 currentLookAt = currentEye + worldAhead;
-                viewMatrix = Matrix.LookAtLH(currentEye, currentLookAt, worldUp);
+                viewMatrix = Matrix4x4.CreateLookAtLeftHanded(currentEye, currentLookAt, worldUp);
 
                 cameraWorldMatrix = viewMatrix;
-                cameraWorldMatrix.Invert();
+                Matrix4x4.Invert(cameraWorldMatrix, out cameraWorldMatrix);
 
-                cameraWorldMatrix.DecomposeUniformScale(out float scale, out Quaternion rot, out Vector3 trans);
+                Matrix4x4.Decompose(cameraWorldMatrix, out Vector3 scale, out Quaternion rot, out Vector3 trans);
 
-                viewMatrixAtOrigin = Matrix.RotationQuaternion(rot);
-                viewMatrixAtOrigin.Invert();
+                viewMatrixAtOrigin = Matrix4x4.CreateFromQuaternion(rot);
+                Matrix4x4.Invert(viewMatrixAtOrigin, out viewMatrixAtOrigin);
             }
 
             public void SetRotateButtons(bool inLeft, bool inMiddle, bool inRight, bool inRotateWithoutButtonDown = false)
@@ -560,14 +562,14 @@ namespace Frosty.Core.Viewport
                 bRotateWithoutButtonDown = inRotateWithoutButtonDown;
             }
 
-            public Matrix GetWorldMatrix() { return cameraWorldMatrix; }
+            public Matrix4x4 GetWorldMatrix() { return cameraWorldMatrix; }
 
             public Vector3 GetWorldRight() { return cameraWorldMatrix.Right; }
             public Vector3 GetWorldUp() { return cameraWorldMatrix.Up; }
             public Vector3 GetWorldAhead() { return cameraWorldMatrix.Forward; }
-            public override Vector3 GetEyePt() { return cameraWorldMatrix.TranslationVector; }
+            public override Vector3 GetEyePt() { return cameraWorldMatrix.Translation; }
 
-            protected Matrix cameraWorldMatrix;
+            protected Matrix4x4 cameraWorldMatrix;
             protected int activeButtonMask;
             protected bool bRotateWithoutButtonDown;
         }
@@ -642,23 +644,23 @@ namespace Frosty.Core.Viewport
                 axisDelta *= elapsedTime;
                 currentPan += posDelta + axisDelta;
 
-                Matrix cameraRot = Matrix.RotationYawPitchRoll(cameraYawAngle, cameraPitchAngle, 0);
-                Matrix cameraRotYaw = Matrix.RotationYawPitchRoll(cameraYawAngle, 0.0f, 0);
+                Matrix4x4 cameraRot = Matrix4x4.CreateFromYawPitchRoll(cameraYawAngle, cameraPitchAngle, 0);
+                Matrix4x4 cameraRotYaw = Matrix4x4.CreateFromYawPitchRoll(cameraYawAngle, 0.0f, 0);
 
                 Vector3 worldUp = Vector3.TransformCoordinate(Vector3.UnitY, cameraRot);
                 Vector3 worldAhead = Vector3.TransformCoordinate(Vector3.UnitZ, cameraRot);
 
                 currentLookAt = (defaultLookAt * Vector3.UnitY) + (worldAhead * (maxRadius - radius)) + Vector3.TransformCoordinate(currentPan, cameraRotYaw);
                 currentEye = (defaultLookAt * Vector3.UnitY) + (worldAhead * -radius) + Vector3.TransformCoordinate(currentPan, cameraRotYaw);
-                viewMatrix = Matrix.LookAtLH(currentEye, currentLookAt, Vector3.UnitY);
+                viewMatrix = Matrix4x4.CreateLookAtLeftHanded(currentEye, currentLookAt, Vector3.UnitY);
 
-                Matrix cameraWorldMatrix = viewMatrix;
-                cameraWorldMatrix.Invert();
+                Matrix4x4 cameraWorldMatrix = viewMatrix;
+                Matrix4x4.Invert(cameraWorldMatrix, out cameraWorldMatrix);
 
-                cameraWorldMatrix.DecomposeUniformScale(out float scale, out Quaternion rot, out Vector3 trans);
+                Matrix4x4.Decompose(cameraWorldMatrix, out Vector3 scale, out Quaternion rot, out Vector3 trans);
 
-                viewMatrixAtOrigin = Matrix.RotationQuaternion(rot);
-                viewMatrixAtOrigin.Invert();
+                viewMatrixAtOrigin = Matrix4x4.CreateFromQuaternion(rot);
+                Matrix4x4.Invert(viewMatrixAtOrigin, out viewMatrixAtOrigin);
             }
 
             protected float radius = 1.0f;

@@ -1,11 +1,15 @@
-﻿using Frosty.Core.Controls;
+﻿using Frosty.Core;
+using Frosty.Core.Controls;
 using Frosty.Core.Windows;
+using FrostySdk;
+using FrostySdk.Ebx;
 using FrostySdk.Interfaces;
 using FrostySdk.IO;
-using SharpDX;
-using SharpDX.Multimedia;
-using SharpDX.XAudio2;
+using FrostySdk.Managers.Entries;
+using SoundEditorPlugin.Helpers;
+using SoundEditorPlugin.Resources;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -17,18 +21,10 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using Frosty.Core;
-using FrostySdk.Managers;
-using FrostySdk.Managers.Entries;
-using NAudio.Wave;
-using NAudio.Wave.SampleProviders;
-using WaveFormatExtensible = SharpDX.Multimedia.WaveFormatExtensible;
-using FrostySdk;
-using SoundEditorPlugin.Resources;
-using System.Diagnostics;
-using FrostySdk.Ebx;
-using System.Collections;
-using SoundEditorPlugin.Helpers;
+using Vortice;
+using Vortice.Multimedia;
+using Vortice.XAudio2;
+using WaveFormatExtensible = Vortice.Multimedia.WaveFormatExtensible;
 
 namespace SoundEditorPlugin
 {
@@ -251,10 +247,10 @@ namespace SoundEditorPlugin
     {
         public SoundDataTrack track;
         public event RoutedEventHandler OnFinishedPlaying;
-        public double Progress => (voice.State.SamplesPlayed - (loopPtr / track.ChannelCount) < 0) ? voice.State.SamplesPlayed / (double)(SampleCount / track.ChannelCount) : (voice.State.SamplesPlayed - (loopPtr / track.ChannelCount)) / (double)(SampleCount / track.ChannelCount);
+        public double Progress => (voice.State.SamplesPlayed - (ulong)(loopPtr / track.ChannelCount) < 0) ? voice.State.SamplesPlayed / (double)(SampleCount / track.ChannelCount) : (voice.State.SamplesPlayed - (ulong)(loopPtr / track.ChannelCount)) / (double)(SampleCount / track.ChannelCount);
         public long SampleCount => track.Samples.Length;
 
-        private SourceVoice voice;
+        private IXAudio2SourceVoice voice;
         private AudioBuffer buffer;
         private int bufferPtr;
         private long loopPtr;
@@ -267,14 +263,18 @@ namespace SoundEditorPlugin
             WaveFormatExtensible format = new WaveFormatExtensible(track.SampleRate, 16, track.ChannelCount);
             switch (track.ChannelCount)
             {
-                case 2: format.ChannelMask = Speakers.FrontLeft | Speakers.FrontRight; break;
-                case 4: format.ChannelMask = Speakers.FrontLeft | Speakers.FrontRight | Speakers.BackLeft | Speakers.BackRight; break;
-                case 6: format.ChannelMask = Speakers.FrontLeft | Speakers.FrontRight | Speakers.FrontCenter | Speakers.LowFrequency | Speakers.BackLeft | Speakers.BackRight; break;
+                case 2: format.ChannelMask = (int)(Speakers.FrontLeft | Speakers.FrontRight); break;
+                case 4: format.ChannelMask = (int)(Speakers.FrontLeft | Speakers.FrontRight | Speakers.BackLeft | Speakers.BackRight); break;
+                case 6: format.ChannelMask = (int)(Speakers.FrontLeft | Speakers.FrontRight | Speakers.FrontCenter | Speakers.LowFrequency | Speakers.BackLeft | Speakers.BackRight); break;
                 default: format.ChannelMask = 0; break;
             }
 
-            voice = new SourceVoice(player.AudioSystem, format, true);
-            voice.SetOutputVoices(new VoiceSendDescriptor(player.OutputVoice));
+            voice = player.AudioSystem.CreateSourceVoice(format, true);
+            voice.SetOutputVoices(
+                [
+                    new() {OutputVoice = player.OutputVoice}
+                ]
+                );
 
             bool ForceStereo = Config.Get<bool>("ForceStereo", true);
             if (ForceStereo)
@@ -289,7 +289,7 @@ namespace SoundEditorPlugin
                     fMatrix.Add(1.0f); // R channel
                 }
 
-                voice.SetOutputMatrix(track.ChannelCount, 2, fMatrix.ToArray());
+                voice.SetOutputMatrix((uint)track.ChannelCount, 2, fMatrix.ToArray());
             }
 
             voice.BufferEnd += Voice_BufferEnd;
@@ -305,13 +305,7 @@ namespace SoundEditorPlugin
             if (bufferPtr < SampleCount)
             {
                 int bufferSize = (SampleCount - bufferPtr > MAX_BUFFER_SIZE * track.ChannelCount) ? MAX_BUFFER_SIZE * track.ChannelCount : (int)(SampleCount - bufferPtr);
-                DataStream DS = new DataStream(bufferSize * sizeof(short), true, true);
-                buffer = new AudioBuffer
-                {
-                    Stream = DS,
-                    AudioBytes = (int)DS.Length,
-                    Flags = BufferFlags.None
-                };
+                var DS = new Vortice.DataStream(bufferSize * sizeof(short), true, true);
 
                 // interleave channels
                 while (DS.Position < DS.Length)
@@ -327,6 +321,9 @@ namespace SoundEditorPlugin
                         bufferPtr = (int)track.LoopStart;
                     }
                 }
+
+                DS.Position = 0;
+                buffer = new(DS, BufferFlags.None);
 
                 voice.SubmitSourceBuffer(buffer, null);
             }
@@ -346,8 +343,8 @@ namespace SoundEditorPlugin
 
     public class AudioPlayer : IDisposable
     {
-        public XAudio2 AudioSystem { get; }
-        public MasteringVoice OutputVoice { get; }
+        public IXAudio2 AudioSystem { get; }
+        public IXAudio2MasteringVoice OutputVoice { get; }
         public double Progress => currentSound?.Progress ?? 0.0;
         public bool IsPlaying { get; private set; }
 
@@ -355,8 +352,8 @@ namespace SoundEditorPlugin
 
         public AudioPlayer()
         {
-            AudioSystem = new XAudio2();
-            OutputVoice = new MasteringVoice(AudioSystem, 8);
+            AudioSystem = XAudio2.XAudio2Create();
+            OutputVoice = AudioSystem.CreateMasteringVoice(8, 44100);
         }
 
         public void PlaySound(SoundDataTrack track)

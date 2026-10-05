@@ -84,6 +84,8 @@ namespace Frosty.ModSupport
 
                                 if (magic == 0xC3E5D5C3)
                                 {
+                                    var decryptedBuffer = new byte[buffer.Length];
+
                                     using (Aes aes = Aes.Create())
                                     {
                                         aes.Key = key;
@@ -94,9 +96,11 @@ namespace Frosty.ModSupport
                                         using (MemoryStream decryptStream = new MemoryStream(buffer))
                                         {
                                             using (CryptoStream cryptoStream = new CryptoStream(decryptStream, decryptor, CryptoStreamMode.Read))
-                                                cryptoStream.Read(buffer, 0, buffer.Length);
+                                                cryptoStream.Read(decryptedBuffer, 0, decryptedBuffer.Length);
                                         }
                                     }
+
+                                    buffer = decryptedBuffer;
                                 }
                             }
 

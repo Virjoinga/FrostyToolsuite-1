@@ -959,6 +959,14 @@
                                         <Button x:Name="BookmarkEditLabelButton" IsEnabled="False" Margin="0,1,6,1" Padding="0,0,0,0" Width="22" Height="22" ToolTip="Edit Name" Click="BookmarkEditLabelButton_Click">
                                             <Image Source="/FrostyEditor;component/Images/EditLabel.png" Width="16" Height="16"/>
                                         </Button>
+
+                                        <Button x:Name="BookmarkMoveUpButton" IsEnabled="False" Margin="0,1,6,1" Padding="0,0,0,0" Width="22" Height="22" ToolTip="Move Up" Click="BookmarkMoveUpButton_Click">
+                                            <Path Width="10" Height="10" Fill="{StaticResource FontColor}" Stretch="Uniform" Data="M 0,6 L 5,0 L 10,6 Z"/>
+                                        </Button>
+                                        <Button x:Name="BookmarkMoveDownButton" IsEnabled="False" Margin="0,1,6,1" Padding="0,0,0,0" Width="22" Height="22" ToolTip="Move Down" Click="BookmarkMoveDownButton_Click">
+                                            <Path Width="10" Height="10" Fill="{StaticResource FontColor}" Stretch="Uniform" Data="M 0,0 L 5,6 L 10,0 Z"/>
+                                        </Button>
+
                                         <Grid MinWidth="170">
 
                                             <Border Grid.Column="0" Grid.ColumnSpan="2" Margin="0,2,2,2" BorderBrush="#868686" BorderThickness="1">
@@ -1071,14 +1079,41 @@
                                                     <StackPanel.InputBindings>
                                                         <MouseBinding Gesture="LeftDoubleClick" Command="{Binding Path=BookmarkItemDoubleClickCommand, RelativeSource={RelativeSource AncestorType={x:Type windows:MainWindow}}}"/>
                                                     </StackPanel.InputBindings>
-                                                    <Image x:Name="imageRect"  Grid.Column="0" Width="16" Height="16" Source="{Binding Path=Icon}" Margin="3,0,6,0"/>
+
+                                                    <Rectangle x:Name="imageRect" Grid.Column="0" Width="16" Height="16" Fill="{StaticResource FontColor}" Margin="3,0,6,0">
+                                                        <Rectangle.OpacityMask>
+                                                            <ImageBrush ImageSource="{Binding Path=Icon}"/>
+                                                        </Rectangle.OpacityMask>
+                                                    </Rectangle>
+
                                                     <ctrl2:FrostyEditableLabel Text="{Binding Path=Name, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,0,0" FontWeight="Bold" EditEnded="FrostyEditableLabel_EditEnded"/>
-                                                    <TextBlock x:Name="bookmarkPath" Text="{Binding Path=Text}" Foreground="{StaticResource FontColor}"  VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.5"/>
+                                                    <TextBlock x:Name="bookmarkPath" Text="{Binding Path=Text}" Foreground="{StaticResource FontColor}" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.5"/>
                                                 </StackPanel>
+
                                                 <HierarchicalDataTemplate.Triggers>
                                                     <DataTrigger Binding="{Binding Path=Name}" Value="">
                                                         <Setter TargetName="bookmarkPath" Property="Opacity" Value="1"/>
                                                     </DataTrigger>
+
+                                                    <DataTrigger Binding="{Binding Path=IsFolder}" Value="True">
+                                                        <Setter TargetName="imageRect" Property="OpacityMask">
+                                                            <Setter.Value>
+                                                                <ImageBrush ImageSource="/FrostyEditor;component/Images/CloseFolder.png"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding Path=IsFolder}" Value="True"/>
+                                                            <Condition Binding="{Binding Path=IsExpanded}" Value="True"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter TargetName="imageRect" Property="OpacityMask">
+                                                            <Setter.Value>
+                                                                <ImageBrush ImageSource="/FrostyEditor;component/Images/OpenFolder.png"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </MultiDataTrigger>
                                                 </HierarchicalDataTemplate.Triggers>
                                             </HierarchicalDataTemplate>
                                         </TreeView.ItemTemplate>
