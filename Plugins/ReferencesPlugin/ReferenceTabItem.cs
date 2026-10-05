@@ -89,12 +89,28 @@ public class ReferenceTabItem : FrostyTabItem
 
         // Collect outgoing references
         fromList.ItemsSource = entry.EnumerateDependencies()
-            .Select(App.AssetManager.GetEbxEntry)
-            .Where(d => d != null).ToList();
+            .Select(g => (object)App.AssetManager.GetEbxEntry(g) ?? new MissingReference(g))
+            .ToList();
 
         // Collect incoming references
         toList.ItemsSource = App.AssetManager.EnumerateEbx()
             .Where(sub => sub.ContainsDependency(entry.Guid)).ToList();
+    }
+}
+
+// Supprt for files with missing references
+public sealed class MissingReference
+{
+    public Guid Guid { get; }
+    public string DisplayName { get; } = "Missing file";
+    public string Path { get; }
+    public string Type { get; } = "Unknown";
+    public bool IsModified => false;
+
+    public MissingReference(Guid guid)
+    {
+        Guid = guid;
+        Path = guid.ToString();
     }
 }
 
