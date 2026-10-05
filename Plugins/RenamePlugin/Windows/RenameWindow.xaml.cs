@@ -3,6 +3,7 @@ using Frosty.Core;
 using System;
 using System.Windows;
 using FrostySdk.Managers.Entries;
+using System.IO;
 
 namespace RenamePlugin.Windows
 {
@@ -44,9 +45,19 @@ namespace RenamePlugin.Windows
                 EbxAssetEntry asset = App.SelectedAsset;
                 var ebxAsset = App.AssetManager.GetEbx(asset);
                 dynamic rootObj = ebxAsset.RootObject;
-                rootObj.Name = string.Concat(asset.Name.AsSpan(0, asset.Name.LastIndexOf('/') + 1), mName);
-                App.AssetManager.ModifyEbx(asset.Name, ebxAsset);
+
+                string nameOrig = asset.Name;
+
+                string assetPath = Path.GetDirectoryName(nameOrig).Replace('\\', '/');
+                string nameCleaned = mName.Replace("/", string.Empty);
+
+                rootObj.Name = assetPath + "/" + nameCleaned;
                 asset.Name = rootObj.Name;
+
+                
+                App.AssetManager.RemoveAssetFromList(asset);
+                App.AssetManager.AddEbx(asset);
+                //App.AssetManager.ModifyEbx(asset.Name, ebxAsset);
 
                 RefreshEditorDataExplorer();
             }
