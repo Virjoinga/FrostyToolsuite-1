@@ -174,7 +174,7 @@ namespace Frosty.Core.Windows
 
         private void CreateInstanceButton_Click(object sender, RoutedEventArgs e)
         {
-            ClassSelector win = new ClassSelector(TypeLibrary.GetTypes("Asset"), allowAssets: true);
+            ClassSelector win = new ClassSelector(TypeLibrary.GetTypes("DataContainer"), allowAssets: true);
             if (win.ShowDialog() == true)
             {
                 Type selectedType = win.SelectedClass;
