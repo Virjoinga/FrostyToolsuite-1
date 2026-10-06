@@ -136,7 +136,9 @@ namespace WeaponCreatorPlugin.Windows
 
             string newBpbName = VerifyFileName($"Win32/weapons/{mWeaponName}_bpb");
             EbxAssetEntry newBpb = CreateAsset(newBpbName, TypeLibrary.GetType("PVZCharacterWeaponBlueprintBundle"));
-            string bundleName = newBpbName.ToLowerInvariant();
+            string bundleName = ProfilesLibrary.IsLoaded(ProfileVersion.PlantsVsZombiesBattleforNeighborville)
+                ? "Win32/" + newBpbName.ToLower().Replace("Win32/", "", StringComparison.OrdinalIgnoreCase)
+                : "win32/" + newBpbName.Replace("win32/", "", StringComparison.OrdinalIgnoreCase);
 
             int sourceBundleId = templateBpbEntry.Bundles.Count > 0
                 ? templateBpbEntry.Bundles[0]
@@ -260,7 +262,7 @@ namespace WeaponCreatorPlugin.Windows
 
             EbxAsset newUnlockAsset = App.AssetManager.GetEbx(newUnlock);
             dynamic newUnlockRoot = newUnlockAsset.RootObject;
-            newUnlockRoot.WeaponBlueprintBundleReference.Name = bundleName.Replace("win32/", string.Empty);
+            newUnlockRoot.WeaponBlueprintBundleReference.Name = bundleName.Replace("win32/", "", StringComparison.OrdinalIgnoreCase);
             App.AssetManager.ModifyEbx(newUnlock.Name, newUnlockAsset);
 
             // AllWeaponAssets

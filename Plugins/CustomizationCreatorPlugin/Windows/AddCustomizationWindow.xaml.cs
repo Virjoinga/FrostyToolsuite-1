@@ -215,7 +215,10 @@ namespace CustomizationCreatorPlugin.Windows
             int sourceBundleId = baseBpb.Bundles.Count > 0
                 ? baseBpb.Bundles[0]
                 : baseBpb.AddedBundles[0];
-            string bundleName = "win32/" + newBpbName.Replace("Win32/", "").Replace("win32/", "");
+            string bundleName = ProfilesLibrary.IsLoaded(ProfileVersion.PlantsVsZombiesBattleforNeighborville)
+                ? "Win32/" + newBpbName.ToLower().Replace("Win32/", "", StringComparison.OrdinalIgnoreCase)
+                : "win32/" + newBpbName.Replace("win32/", "", StringComparison.OrdinalIgnoreCase);
+
             BundleEntry newBundleEntry = App.AssetManager.AddBundle(
                 bundleName,
                 BundleType.BlueprintBundle,
@@ -334,7 +337,7 @@ namespace CustomizationCreatorPlugin.Windows
             // 7. Update references
             EbxAsset newUnlockAsset = App.AssetManager.GetEbx(newUnlock);
             dynamic newUnlockRoot = newUnlockAsset.RootObject;
-            newUnlockRoot.BlueprintBundleReference.Name = bundleName.Replace("win32/", "");
+            newUnlockRoot.BlueprintBundleReference.Name = bundleName.Replace("win32/", "", StringComparison.OrdinalIgnoreCase);
 
             if (newUnlockRoot.Visuals != null && newUnlockRoot.Visuals.Count > 0)
             {
